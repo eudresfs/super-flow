@@ -6,125 +6,32 @@
  */
 
 // this object is generated from Flow Builder under "..." > Endpoint > Snippets > Responses
+// To navigate to a screen, return the corresponding response from the endpoint. Make sure the response is enccrypted.
 const SCREEN_RESPONSES = {
-  APPOINTMENT: {
+  LOAN: {
     version: "3.0",
-    screen: "APPOINTMENT",
+    screen: "LOAN",
     data: {
-      department: [
-        {
-          id: "shopping",
-          title: "Shopping & Groceries",
-        },
-        {
-          id: "clothing",
-          title: "Clothing & Apparel",
-        },
-        {
-          id: "home",
-          title: "Home Goods & Decor",
-        },
-        {
-          id: "electronics",
-          title: "Electronics & Appliances",
-        },
-        {
-          id: "beauty",
-          title: "Beauty & Personal Care",
-        },
-      ],
-      location: [
-        {
-          id: "1",
-          title: "King\u2019s Cross, London",
-        },
-        {
-          id: "2",
-          title: "Oxford Street, London",
-        },
-        {
-          id: "3",
-          title: "Covent Garden, London",
-        },
-        {
-          id: "4",
-          title: "Piccadilly Circus, London",
-        },
-      ],
-      is_location_enabled: true,
-      date: [
-        {
-          id: "2024-01-01",
-          title: "Mon Jan 01 2024",
-        },
-        {
-          id: "2024-01-02",
-          title: "Tue Jan 02 2024",
-        },
-        {
-          id: "2024-01-03",
-          title: "Wed Jan 03 2024",
-        },
-      ],
-      is_date_enabled: true,
-      time: [
-        {
-          id: "10:30",
-          title: "10:30",
-        },
-        {
-          id: "11:00",
-          title: "11:00",
-          enabled: false,
-        },
-        {
-          id: "11:30",
-          title: "11:30",
-        },
-        {
-          id: "12:00",
-          title: "12:00",
-          enabled: false,
-        },
-        {
-          id: "12:30",
-          title: "12:30",
-        },
-      ],
-      is_time_enabled: true,
+      amount: "\u20b9 7,20,000",
+      tenure: "24_months",
+      emi: "\u20b9 20,000",
+      rate: "9% pa",
+      fee: "500",
     },
   },
   DETAILS: {
     version: "3.0",
     screen: "DETAILS",
-    data: {
-      department: "beauty",
-      location: "1",
-      date: "2024-01-01",
-      time: "11:30",
-    },
+    data: {},
   },
   SUMMARY: {
     version: "3.0",
     screen: "SUMMARY",
-    data: {
-      appointment:
-        "Beauty & Personal Care Department at Kings Cross, London\nMon Jan 01 2024 at 11:30.",
-      details:
-        "Name: John Doe\nEmail: john@example.com\nPhone: 123456789\n\nA free skin care consultation, please",
-      department: "beauty",
-      location: "1",
-      date: "2024-01-01",
-      time: "11:30",
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "123456789",
-      more_details: "A free skin care consultation, please",
-    },
+    data: {},
   },
-  TERMS: {
+  COMPLETE: {
     version: "3.0",
-    screen: "TERMS",
+    screen: "COMPLETE",
     data: {},
   },
   SUCCESS: {
@@ -164,16 +71,19 @@ export const getNextScreen = async (decryptedBody) => {
     };
   }
 
-  // handle initial request when opening the flow and display APPOINTMENT screen
+  // handle initial request when opening the flow and display LOAN screen
   if (action === "INIT") {
     return {
-      ...SCREEN_RESPONSES.APPOINTMENT,
+      ...SCREEN_RESPONSES.LOAN,
       data: {
-        ...SCREEN_RESPONSES.APPOINTMENT.data,
+        ...SCREEN_RESPONSES.LOAN.data,
         // these fields are disabled initially. Each field is enabled when previous fields are selected
         is_location_enabled: false,
-        is_date_enabled: false,
-        is_time_enabled: false,
+        amount: "\u20b9 7,20,000",
+        tenure: "24_months",
+        emi: "\u20b9 20,000",
+        rate: "9% pa",
+        fee: "500",
       },
     };
   }
@@ -241,7 +151,7 @@ Phone: ${data.phone}
         // TODO: save appointment to your database
         // send success response to complete and close the flow
         return {
-          ...SCREEN_RESPONSES.SUCCESS,
+          ...SCREEN_RESPONSES.COMPLETE,
           data: {
             extension_message_response: {
               params: {
