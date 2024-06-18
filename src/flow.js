@@ -48,6 +48,37 @@ const SCREEN_RESPONSES = {
   },
 };
 
+const LOAN_OPTIONS = {
+  "12_months": {
+    amount: "720000",
+    tenure: "12_months",
+    emi: "5500",
+    rate: "9% pa",
+    fee: "500",
+  },
+  "24_months": {
+    amount: "720000",
+    tenure: "24_months",
+    emi: "4500",
+    rate: "9% pa",
+    fee: "500",
+  },
+  "36_months": {
+    amount: "720000",
+    tenure: "36_months",
+    emi: "3500",
+    rate: "9% pa",
+    fee: "500",
+  },
+  "48_months": {
+    amount: "720000",
+    tenure: "48_months",
+    emi: "2500",
+    rate: "9% pa",
+    fee: "500",
+  },
+};
+
 export const getNextScreen = async (decryptedBody) => {
   const { screen, data, version, action, flow_token } = decryptedBody;
   // handle health check request
@@ -76,12 +107,7 @@ export const getNextScreen = async (decryptedBody) => {
     return {
       ...SCREEN_RESPONSES.LOAN,
       data: {
-        ...SCREEN_RESPONSES.LOAN.data,
-        amount: "500000",
-        tenure: "12_months",
-        emi: "5000",
-        rate: "5% pa",
-        fee: "1500",
+        ...LOAN_OPTIONS['12_months']
       },
     };
   }
@@ -89,26 +115,13 @@ export const getNextScreen = async (decryptedBody) => {
   if (action === "data_exchange") {
     // handle the request based on the current screen
     switch (screen) {
-      // handles when user interacts with APPOINTMENT screen
-      case "APPOINTMENT":
-        // update the appointment fields based on current user selection
+      // handles when user interacts with LOAN screen
+      case "LOAN":
+        // update the loan quote based on user selected tenure
         return {
-          ...SCREEN_RESPONSES.APPOINTMENT,
+          ...SCREEN_RESPONSES.LOAN,
           data: {
-            // copy initial screen data then override specific fields
-            ...SCREEN_RESPONSES.APPOINTMENT.data,
-            // each field is enabled only when previous fields are selected
-            is_location_enabled: Boolean(data.department),
-            is_date_enabled: Boolean(data.department) && Boolean(data.location),
-            is_time_enabled:
-              Boolean(data.department) &&
-              Boolean(data.location) &&
-              Boolean(data.date),
-
-            //TODO: filter each field options based on current selection, here we filter randomly instead
-            location: SCREEN_RESPONSES.APPOINTMENT.data.location.slice(0, 3),
-            date: SCREEN_RESPONSES.APPOINTMENT.data.date.slice(0, 3),
-            time: SCREEN_RESPONSES.APPOINTMENT.data.time.slice(0, 3),
+            ...LOAN_OPTIONS[data.tenure]
           },
         };
 
@@ -150,8 +163,7 @@ Phone: ${data.phone}
         // send success response to complete and close the flow
         return {
           ...SCREEN_RESPONSES.COMPLETE,
-          data: {
-          },
+          data: {},
         };
 
       default:
