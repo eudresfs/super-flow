@@ -77,13 +77,11 @@ export const getNextScreen = async (decryptedBody) => {
       ...SCREEN_RESPONSES.LOAN,
       data: {
         ...SCREEN_RESPONSES.LOAN.data,
-        // these fields are disabled initially. Each field is enabled when previous fields are selected
-        is_location_enabled: false,
-        amount: "\u20b9 7,20,000",
-        tenure: "24_months",
-        emi: "\u20b9 20,000",
-        rate: "9% pa",
-        fee: "500",
+        amount: "500000",
+        tenure: "12_months",
+        emi: "5000",
+        rate: "5% pa",
+        fee: "1500",
       },
     };
   }
@@ -153,11 +151,6 @@ Phone: ${data.phone}
         return {
           ...SCREEN_RESPONSES.COMPLETE,
           data: {
-            extension_message_response: {
-              params: {
-                flow_token,
-              },
-            },
           },
         };
 
