@@ -33,15 +33,15 @@ const SCREEN_RESPONSES = {
             "amount": [
                 {
                     "id": "amount1",
-                    "title": "\u20b9 7,20,000"
+                    "title": "\u20b9 5,20,000"
                 },
                 {
                     "id": "amount2",
-                    "title": "\u20b9 3,20,000"
+                    "title": "\u20b9 7,20,000"
                 },
                 {
                     "id": "amount3",
-                    "title": "\u20b9 9,20,000"
+                    "title": "\u20b9 3,20,000"
                 },
                 {
                     "id": "amount4",
