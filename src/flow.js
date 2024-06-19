@@ -157,9 +157,9 @@ export const getNextScreen = async (decryptedBody) => {
   if (action === "INIT") {
     return {
       ...SCREEN_RESPONSES.LOAN,
-      data: {
-        ...LOAN_OPTIONS['12_months']
-      },
+      // data: {
+      //   ...LOAN_OPTIONS['12_months']
+      // },
     };
   }
 
