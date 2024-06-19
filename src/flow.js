@@ -8,44 +8,95 @@
 // this object is generated from Flow Builder under "..." > Endpoint > Snippets > Responses
 // To navigate to a screen, return the corresponding response from the endpoint. Make sure the response is enccrypted.
 const SCREEN_RESPONSES = {
-  LOAN: {
-    version: "3.0",
-    screen: "LOAN",
-    data: {
-      amount: "\u20b9 7,20,000",
-      tenure: "24_months",
-      emi: "\u20b9 20,000",
-      rate: "9% pa",
-      fee: "500",
+    LOAN: {
+        "version": "3.0",
+        "screen": "LOAN",
+        "data": {
+            "tenure": [
+                {
+                    "id": "months12",
+                    "title": "12 months"
+                },
+                {
+                    "id": "months24",
+                    "title": "24 months"
+                },
+                {
+                    "id": "months36",
+                    "title": "36 months"
+                },
+                {
+                    "id": "months48",
+                    "title": "48 months"
+                }
+            ],
+            "amount": [
+                {
+                    "id": "amount1",
+                    "title": "\u20b9 7,20,000"
+                },
+                {
+                    "id": "amount2",
+                    "title": "\u20b9 3,20,000"
+                },
+                {
+                    "id": "amount3",
+                    "title": "\u20b9 9,20,000"
+                },
+                {
+                    "id": "amount4",
+                    "title": "\u20b9 1,20,000"
+                }
+            ],
+            "emi": [
+                {
+                    "id": "emi1",
+                    "title": "\u20b9 20,000"
+                },
+                {
+                    "id": "emi2",
+                    "title": "\u20b9 40,000"
+                },
+                {
+                    "id": "emi3",
+                    "title": "\u20b9 60,000"
+                },
+                {
+                    "id": "emi4",
+                    "title": "\u20b9 80,000"
+                }
+            ],
+            "rate": "9% pa",
+            "fee": "500"
+        }
     },
-  },
-  DETAILS: {
-    version: "3.0",
-    screen: "DETAILS",
-    data: {},
-  },
-  SUMMARY: {
-    version: "3.0",
-    screen: "SUMMARY",
-    data: {},
-  },
-  COMPLETE: {
-    version: "3.0",
-    screen: "COMPLETE",
-    data: {},
-  },
-  SUCCESS: {
-    version: "3.0",
-    screen: "SUCCESS",
-    data: {
-      extension_message_response: {
-        params: {
-          flow_token: "REPLACE_FLOW_TOKEN",
-          some_param_name: "PASS_CUSTOM_VALUE",
-        },
-      },
+    DETAILS: {
+        "version": "3.0",
+        "screen": "DETAILS",
+        "data": {}
     },
-  },
+    SUMMARY: {
+        "version": "3.0",
+        "screen": "SUMMARY",
+        "data": {}
+    },
+    COMPLETE: {
+        "version": "3.0",
+        "screen": "COMPLETE",
+        "data": {}
+    },
+    SUCCESS: {
+        "version": "3.0",
+        "screen": "SUCCESS",
+        "data": {
+            "extension_message_response": {
+                "params": {
+                    "flow_token": "REPLACE_FLOW_TOKEN",
+                    "some_param_name": "PASS_CUSTOM_VALUE"
+                }
+            }
+        }
+    },
 };
 
 const LOAN_OPTIONS = {
