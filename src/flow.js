@@ -38,14 +38,6 @@ const SCREEN_RESPONSES = {
                 {
                     "id": "amount2",
                     "title": "\u20b9 3,20,000"
-                },
-                {
-                    "id": "amount3",
-                    "title": "\u20b9 9,20,000"
-                },
-                {
-                    "id": "amount4",
-                    "title": "\u20b9 1,20,000"
                 }
             ],
             "emi": "\u20b9 20,000",
@@ -98,6 +90,18 @@ const SCREEN_RESPONSES = {
 };
 
 const LOAN_OPTIONS = {
+  "amount1" : {
+    "months12" : "₹ 20,000",
+    "months24" : "₹ 20,000",
+    "months36" : "₹ 20,000",
+    "months48" : "₹ 20,000",
+  },
+  "amount1" : {
+    "months12" : "₹ 20,000",
+    "months24" : "₹ 20,000",
+    "months36" : "₹ 20,000",
+    "months48" : "₹ 20,000",
+  },
   "12_months": {
     amount: "720000",
     tenure: "12_months",
@@ -198,18 +202,16 @@ export const getNextScreen = async (decryptedBody) => {
         }
         // Handles user clicking on Continue
         // Store user provide disburesment details
-        const payment_string = data.
+        const payment_string = data.upi_id != null ? 'Upi xxxx' + data.upi_id.slice(-4) : 'account xxxx' + data.account_number.slice(-4);
         return {
           ...SCREEN_RESPONSES.SUMMARY,
           data: {
              // copy initial screen data then override specific fields
             ...SCREEN_RESPONSES.SUMMARY.data,
-            
             amount: "\u20b9 7,20,000",
             tenure: "12 months",
             emi: "\u20b9 3500",
-            "payment_mode": "Transfer to account xxxx2342"
-            
+            payment_mode: "Transfer to " + payment_string
           },
         };
 
