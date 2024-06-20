@@ -91,45 +91,18 @@ const SCREEN_RESPONSES = {
 
 const LOAN_OPTIONS = {
   "amount1" : {
-    "months12" : "₹ 20,000",
+    "months12" : "₹ 10,000",
     "months24" : "₹ 20,000",
-    "months36" : "₹ 20,000",
-    "months48" : "₹ 20,000",
+    "months36" : "₹ 30,000",
+    "months48" : "₹ 40,000",
   },
-  "amount1" : {
-    "months12" : "₹ 20,000",
-    "months24" : "₹ 20,000",
-    "months36" : "₹ 20,000",
-    "months48" : "₹ 20,000",
-  },
-  "12_months": {
-    amount: "720000",
-    tenure: "12_months",
-    emi: "5500",
-    rate: "9% pa",
-    fee: "500",
-  },
-  "24_months": {
-    amount: "720000",
-    tenure: "24_months",
-    emi: "4500",
-    rate: "9% pa",
-    fee: "500",
-  },
-  "36_months": {
-    amount: "720000",
-    tenure: "36_months",
-    emi: "3500",
-    rate: "9% pa",
-    fee: "500",
-  },
-  "48_months": {
-    amount: "720000",
-    tenure: "48_months",
-    emi: "2500",
-    rate: "9% pa",
-    fee: "500",
-  },
+  "amount2" : {
+    "months12" : "₹ 50,000",
+    "months24" : "₹ 60,000",
+    "months36" : "₹ 70,000",
+    "months48" : "₹ 80,000",
+  }
+  
 };
 
 export const getNextScreen = async (decryptedBody) => {
@@ -174,7 +147,6 @@ export const getNextScreen = async (decryptedBody) => {
             data: {
               // copy initial screen data then override specific fields
             ...SCREEN_RESPONSES.DETAILS.data,
-            // override defaults with user selection
             amount: data.amount,
             tenure: data.tenure,
             emi: data.emi,
@@ -182,11 +154,12 @@ export const getNextScreen = async (decryptedBody) => {
           };
         }
         // otherwise refresh quote based on user selection
-        // TODO update the loan quote based on user selected tenure
         return {
           ...SCREEN_RESPONSES.LOAN,
           data: {
-            ...LOAN_OPTIONS[data.tenure],
+            selected_amount: data.amount,
+            selected_tenure: data.tenure,
+            emi: LOAN_OPTIONS[data.amount][data.tenure],
           },
         };
       case "DETAILS":
