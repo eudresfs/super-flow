@@ -33,52 +33,47 @@ const SCREEN_RESPONSES = {
             "amount": [
                 {
                     "id": "amount1",
-                    "title": "\u20b9 5,20,000"
-                },
-                {
-                    "id": "amount2",
                     "title": "\u20b9 7,20,000"
                 },
                 {
-                    "id": "amount3",
+                    "id": "amount2",
                     "title": "\u20b9 3,20,000"
+                },
+                {
+                    "id": "amount3",
+                    "title": "\u20b9 9,20,000"
                 },
                 {
                     "id": "amount4",
                     "title": "\u20b9 1,20,000"
                 }
             ],
-            "emi": [
-                {
-                    "id": "emi1",
-                    "title": "\u20b9 20,000"
-                },
-                {
-                    "id": "emi2",
-                    "title": "\u20b9 40,000"
-                },
-                {
-                    "id": "emi3",
-                    "title": "\u20b9 60,000"
-                },
-                {
-                    "id": "emi4",
-                    "title": "\u20b9 80,000"
-                }
-            ],
+            "emi": "\u20b9 20,000",
             "rate": "9% pa",
-            "fee": "500"
+            "fee": "500",
+            "selected_amount": "amount1",
+            "selected_tenure": "months48"
         }
     },
     DETAILS: {
         "version": "3.0",
         "screen": "DETAILS",
-        "data": {}
+        "data": {
+            "is_upi": false,
+            "is_account": false
+        }
     },
     SUMMARY: {
         "version": "3.0",
         "screen": "SUMMARY",
-        "data": {}
+        "data": {
+            "amount": "\u20b9 7,20,000",
+            "tenure": "12 months",
+            "rate": "12 months",
+            "emi": "12 months",
+            "fee": "12 months",
+            "payment_mode": "12 months"
+        }
     },
     COMPLETE: {
         "version": "3.0",
