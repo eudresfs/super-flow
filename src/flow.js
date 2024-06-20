@@ -60,7 +60,10 @@ const SCREEN_RESPONSES = {
         "screen": "DETAILS",
         "data": {
             "is_upi": false,
-            "is_account": false
+            "is_account": false,
+            "emi": "\u20b9 20,000",
+            "tenure": "12 months",
+            "amount": "\u20b9 500"
         }
     },
     SUMMARY: {
@@ -152,9 +155,6 @@ export const getNextScreen = async (decryptedBody) => {
   if (action === "INIT") {
     return {
       ...SCREEN_RESPONSES.LOAN,
-      // data: {
-      //   ...LOAN_OPTIONS['12_months']
-      // },
     };
   }
 
@@ -164,9 +164,17 @@ export const getNextScreen = async (decryptedBody) => {
       // handles when user interacts with LOAN screen
       case "LOAN":
         // Handles user clicking on Continue to navigate to next screen
-        if (data.ammount == null && data.tenure == null) {
+        if (data.emi != null) {
           return {
             ...SCREEN_RESPONSES.DETAILS,
+            data: {
+              // copy initial screen data then override specific fields
+            ...SCREEN_RESPONSES.DETAILS.data,
+            // override defaults with user selection
+            amount: data.amount,
+            tenure: data.tenure,
+            emi: data.emi,
+            }
           };
         }
         // otherwise refresh quote based on user selection
@@ -196,11 +204,10 @@ export const getNextScreen = async (decryptedBody) => {
           data: {
              // copy initial screen data then override specific fields
             ...SCREEN_RESPONSES.SUMMARY.data,
-            // each field is enabled only when previous fields are selected
-            //"amount": "\u20b9 7,20,000",
-            //"tenure": "12 months",
-            //"emi": "\u20b9 3500",
-            "fee": "\u20b9 500",
+            
+            amount: "\u20b9 7,20,000",
+            tenure: "12 months",
+            emi: "\u20b9 3500",
             "payment_mode": "Transfer to account xxxx2342"
             
           },
