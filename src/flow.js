@@ -163,6 +163,12 @@ export const getNextScreen = async (decryptedBody) => {
     switch (screen) {
       // handles when user interacts with LOAN screen
       case "LOAN":
+        // 
+        if(data.ammount === null && data.tenure === null) {
+          return {
+            ...SCREEN_RESPONSES.DETAILS
+          }
+        }
         // update the loan quote based on user selected tenure
         return {
           ...SCREEN_RESPONSES.LOAN,
