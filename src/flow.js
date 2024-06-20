@@ -101,8 +101,7 @@ const LOAN_OPTIONS = {
     "months24" : "₹ 60,000",
     "months36" : "₹ 70,000",
     "months48" : "₹ 80,000",
-  }
-  
+  } 
 };
 
 export const getNextScreen = async (decryptedBody) => {
@@ -147,8 +146,8 @@ export const getNextScreen = async (decryptedBody) => {
             data: {
               // copy initial screen data then override specific fields
             ...SCREEN_RESPONSES.DETAILS.data,
-            amount: data.amount,
-            tenure: data.tenure,
+            amount: SCREEN_RESPONSES.LOAN.data.amount.filter(a => a.id === data.amount).map(a => a.title)[0] ,
+            tenure: SCREEN_RESPONSES.LOAN.data.tenure.filter(t => t.id === data.tenure).map(t => t.title)[0],
             emi: data.emi,
             }
           };
@@ -174,23 +173,22 @@ export const getNextScreen = async (decryptedBody) => {
           };
         }
         // Handles user clicking on Continue
-        // Store user provide disburesment details
         const payment_string = data.upi_id != null ? 'Upi xxxx' + data.upi_id.slice(-4) : 'account xxxx' + data.account_number.slice(-4);
         return {
           ...SCREEN_RESPONSES.SUMMARY,
           data: {
              // copy initial screen data then override specific fields
             ...SCREEN_RESPONSES.SUMMARY.data,
-            amount: "\u20b9 7,20,000",
-            tenure: "12 months",
-            emi: "\u20b9 3500",
+            amount: data.amount,
+            tenure: data.tenure,
+            emi: data.emi,
             payment_mode: "Transfer to " + payment_string
           },
         };
 
       // handles when user completes SUMMARY screen
       case "SUMMARY":
-        // TODO: save appointment to your database
+        // TODO: save loan to your database and send money to user account
         // send success response to complete and close the flow
         return {
           ...SCREEN_RESPONSES.COMPLETE,
