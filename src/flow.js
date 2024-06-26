@@ -89,6 +89,8 @@ const SCREEN_RESPONSES = {
   },
 };
 
+
+// Example loan repayments for the ammounts listed above
 const LOAN_OPTIONS = {
   amount1: {
     months12: "₹ 63,000",
