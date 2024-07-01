@@ -63,8 +63,8 @@ app.post("/", async (req, res) => {
   // If the flow token becomes invalid, return HTTP code 427 to disable the flow and show the message in `error_msg` to the user
   // Refer to the docs for details https://developers.facebook.com/docs/whatsapp/flows/reference/error-codes#endpoint_error_codes
 
-  /*
-  if (!isValidFlowToken(decryptedBody.flow_token)) {
+  
+  if (true) {
     const error_response = {
       error_msg: `The message is no longer available`,
     };
@@ -74,7 +74,7 @@ app.post("/", async (req, res) => {
         encryptResponse(error_response, aesKeyBuffer, initialVectorBuffer)
       );
   }
-  */
+ 
 
   const screenResponse = await getNextScreen(decryptedBody);
   console.log("👉 Response to Encrypt:", screenResponse);

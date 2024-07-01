@@ -12,10 +12,6 @@ export const decryptRequest = (body, privatePem, passphrase) => {
 
   const privateKey = crypto.createPrivateKey({ key: privatePem, passphrase });
   let decryptedAesKey = null;
-  throw new FlowEndpointException(
-      421,
-      "Failed to decrypt the request. Please verify your private key."
-    );
   try {
     // decrypt AES key created by client
     decryptedAesKey = crypto.privateDecrypt(
