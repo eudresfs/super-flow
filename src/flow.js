@@ -179,6 +179,7 @@ export const getNextScreen = async (decryptedBody) => {
           };
         }
         // Handles user clicking on Continue
+        // TODO handle storage of user selected payment details
         const payment_string =
           data.upi_id != null
             ? "Upi xxxx" + data.upi_id.slice(-4)
