@@ -14,12 +14,14 @@ const dynamicMinDate = calculateDateYearsAgo(75); // Data de hoje menos 75 anos
 const SCREEN_RESPONSES = {
   account: {
     screen: "account",
-    data: {},
+    data: {
+      federal_id: "", // Inicialmente vazio, será preenchido dinamicamente
+    },
   },
   infos: {
     screen: "infos",
     data: {
-      name: "João da Silva", // Este nome é fixo, mas pode ser substituído por outra informação do `n8n`
+      name: "João da Silva",
     },
   },
   address: {
@@ -52,7 +54,7 @@ const sendDataToEndpoint = async (payload) => {
 };
 
 export const getNextScreen = async (decryptedBody) => {
-  const { screen, data, version, action, flow_token } = decryptedBody;
+  const { screen, data, version, action, flow_token, federal_id } = decryptedBody;
 
   // Verifica o ping (checagem de status do serviço)
   if (action === "ping") {
@@ -83,13 +85,18 @@ export const getNextScreen = async (decryptedBody) => {
     version,
   });
 
+  // Sempre garantimos que o `federal_id` seja incluído na resposta
+  const mergedDataWithFederalID = {
+    ...endpointData,
+    federal_id, // Garantimos que o `federal_id` seja sempre retornado
+  };
+
   // Lida com a inicialização do fluxo (action: INIT)
   if (action === "INIT") {
     return {
       screen: SCREEN_RESPONSES.account.screen,
       data: {
-        ...SCREEN_RESPONSES.account.data, // Inclui os dados da tela account (vazio aqui)
-        ...endpointData, // Retorna também os dados vindos do n8n
+        federal_id, // Inclui o federal_id recebido
       },
     };
   }
@@ -99,11 +106,11 @@ export const getNextScreen = async (decryptedBody) => {
     switch (screen) {
       case "account":
         // Ao continuar da tela account para a tela infos, retornamos os dados do n8n
-        // mais o minDate e maxDate dinâmicos
+        // mais o minDate, maxDate e federal_id
         return {
           screen: SCREEN_RESPONSES.infos.screen,
           data: {
-            ...endpointData, // Resposta do n8n
+            ...mergedDataWithFederalID, // Resposta do n8n e federal_id
             maxDate: dynamicMaxDate, // Data dinâmica: hoje - 18 anos
             minDate: dynamicMinDate, // Data dinâmica: hoje - 75 anos
           },
@@ -113,14 +120,14 @@ export const getNextScreen = async (decryptedBody) => {
         // Após a tela de informações, navega para a tela de endereço
         return {
           screen: SCREEN_RESPONSES.address.screen,
-          data: endpointData, // Retorna somente os dados vindos do n8n
+          data: mergedDataWithFederalID, // Retorna somente os dados vindos do n8n e federal_id
         };
 
       case "address":
         // Após completar a tela de endereço, envia a resposta de sucesso
         return {
           screen: SCREEN_RESPONSES.SUCCESS.screen,
-          data: endpointData, // Retorna somente os dados vindos do n8n
+          data: mergedDataWithFederalID, // Retorna somente os dados vindos do n8n e federal_id
         };
 
       default:
