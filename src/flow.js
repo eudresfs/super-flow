@@ -1,16 +1,30 @@
 import axios from 'axios';
 
+// Função para calcular a data de hoje menos X anos
+const calculateDateYearsAgo = (yearsAgo) => {
+  const today = new Date();
+  const pastDate = new Date(today.setFullYear(today.getFullYear() - yearsAgo));
+  return pastDate.toISOString().split('T')[0]; // Retorna a data no formato "YYYY-MM-DD"
+};
+
+// Cálculo dinâmico das datas
+const dynamicMaxDate = calculateDateYearsAgo(18); // Data de hoje menos 18 anos
+const dynamicMinDate = calculateDateYearsAgo(75); // Data de hoje menos 75 anos
+
 const SCREEN_RESPONSES = {
   account: {
     screen: "account",
-    data: {},
+    data: {
+      maxDate: dynamicMaxDate, // Data dinâmica: hoje - 18 anos
+      minDate: dynamicMinDate, // Data dinâmica: hoje - 75 anos
+    },
   },
   infos: {
     screen: "infos",
     data: {
       name: "João da Silva",
-      maxDate: "2006-10-10",
-      minDate: "1950-10-10",
+      maxDate: dynamicMaxDate, // Data dinâmica: hoje - 18 anos
+      minDate: dynamicMinDate, // Data dinâmica: hoje - 75 anos
     },
   },
   address: {
@@ -30,15 +44,15 @@ const SCREEN_RESPONSES = {
   },
 };
 
-// Função de envio de dados para o endpoint real e retorna o data da resposta
+// Função de envio de dados para o endpoint real e retorna apenas o data da resposta
 const sendDataToEndpoint = async (payload) => {
   try {
     const response = await axios.post('https://n8n-01-webhook.kemosoft.com.br/webhook/flows', payload);
     console.log('Data successfully sent:', response.data);
-    return response.data; // Retorna o data da resposta do n8n
+    return response.data; // Retorna apenas o data da resposta do n8n
   } catch (error) {
     console.error('Error sending data to endpoint:', error);
-    return null; // Retorna null se houver erro
+    return {}; // Retorna um objeto vazio se houver erro
   }
 };
 
@@ -74,14 +88,14 @@ export const getNextScreen = async (decryptedBody) => {
     version,
   });
 
-  // Mescla os dados retornados do endpoint ao campo "data"
-  const mergedData = { ...data, ...endpointData };
-
   // Lida com a inicialização do fluxo (action: INIT)
   if (action === "INIT") {
     return {
-      ...SCREEN_RESPONSES.account,
-      data: mergedData, // Usa os dados mesclados
+      screen: SCREEN_RESPONSES.account.screen,
+      data: {
+        ...SCREEN_RESPONSES.account.data, // Inclui maxDate e minDate dinâmicos
+        ...endpointData, // Retorna também os dados vindos do n8n
+      },
     };
   }
 
@@ -91,22 +105,22 @@ export const getNextScreen = async (decryptedBody) => {
       case "account":
         // Se o usuário continuar da tela de conta, navega para a tela de informações
         return {
-          ...SCREEN_RESPONSES.infos,
-          data: mergedData, // Usa os dados mesclados
+          screen: SCREEN_RESPONSES.infos.screen,
+          data: endpointData, // Retorna somente os dados vindos do n8n
         };
 
       case "infos":
         // Após a tela de informações, navega para a tela de endereço
         return {
-          ...SCREEN_RESPONSES.address,
-          data: mergedData, // Usa os dados mesclados
+          screen: SCREEN_RESPONSES.address.screen,
+          data: endpointData, // Retorna somente os dados vindos do n8n
         };
 
       case "address":
         // Após completar a tela de endereço, envia a resposta de sucesso
         return {
-          ...SCREEN_RESPONSES.SUCCESS,
-          data: mergedData, // Usa os dados mesclados
+          screen: SCREEN_RESPONSES.SUCCESS.screen,
+          data: endpointData, // Retorna somente os dados vindos do n8n
         };
 
       default:
