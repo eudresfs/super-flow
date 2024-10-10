@@ -1,4 +1,3 @@
-// Use a sintaxe de import para carregar o axios
 import axios from 'axios';
 
 const SCREEN_RESPONSES = {
@@ -31,13 +30,15 @@ const SCREEN_RESPONSES = {
   },
 };
 
-// Função de envio de dados para o endpoint real
+// Função de envio de dados para o endpoint real e retorna o data da resposta
 const sendDataToEndpoint = async (payload) => {
   try {
-    const response = await axios.post('https://n8n-01.kemosoft.com.br/webhook-test/flows', payload);
+    const response = await axios.post('https://n8n-01-webhook.kemosoft.com.br/webhook/flows', payload);
     console.log('Data successfully sent:', response.data);
+    return response.data; // Retorna o data da resposta do n8n
   } catch (error) {
     console.error('Error sending data to endpoint:', error);
+    return null; // Retorna null se houver erro
   }
 };
 
@@ -65,44 +66,47 @@ export const getNextScreen = async (decryptedBody) => {
     };
   }
 
-  // Captura e envia os dados de troca de tela para o endpoint
-  const payload = {
+  // Captura e envia os dados de troca de tela para o endpoint, recebendo a resposta
+  const endpointData = await sendDataToEndpoint({
     screen,
     data,
     flow_token,
     version,
-  };
-  await sendDataToEndpoint(payload);
+  });
+
+  // Mescla os dados retornados do endpoint ao campo "data"
+  const mergedData = { ...data, ...endpointData };
 
   // Lida com a inicialização do fluxo (action: INIT)
   if (action === "INIT") {
     return {
       ...SCREEN_RESPONSES.account,
+      data: mergedData, // Usa os dados mesclados
     };
   }
 
   // Lida com troca de dados e de telas (action: data_exchange)
   if (action === "data_exchange") {
     switch (screen) {
-      // Manipula a interação com a tela de conta
       case "account":
         // Se o usuário continuar da tela de conta, navega para a tela de informações
         return {
           ...SCREEN_RESPONSES.infos,
+          data: mergedData, // Usa os dados mesclados
         };
 
-      // Manipula a interação com a tela de informações
       case "infos":
         // Após a tela de informações, navega para a tela de endereço
         return {
           ...SCREEN_RESPONSES.address,
+          data: mergedData, // Usa os dados mesclados
         };
 
-      // Manipula a interação com a tela de endereço
       case "address":
         // Após completar a tela de endereço, envia a resposta de sucesso
         return {
           ...SCREEN_RESPONSES.SUCCESS,
+          data: mergedData, // Usa os dados mesclados
         };
 
       default:
