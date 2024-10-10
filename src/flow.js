@@ -1,12 +1,6 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
+// Use a sintaxe de import para carregar o axios
+import axios from 'axios';
 
-// this object is generated from Flow Builder under "..." > Endpoint > Snippets > Responses
-// To navigate to a screen, return the corresponding response from the endpoint. Make sure the response is enccrypted.
 const SCREEN_RESPONSES = {
   account: {
     screen: "account",
@@ -37,10 +31,20 @@ const SCREEN_RESPONSES = {
   },
 };
 
+// Função de envio de dados para o endpoint real
+const sendDataToEndpoint = async (payload) => {
+  try {
+    const response = await axios.post('https://n8n-01.kemosoft.com.br/webhook-test/flows', payload);
+    console.log('Data successfully sent:', response.data);
+  } catch (error) {
+    console.error('Error sending data to endpoint:', error);
+  }
+};
+
 export const getNextScreen = async (decryptedBody) => {
   const { screen, data, version, action, flow_token } = decryptedBody;
 
-  // handle health check request
+  // Verifica o ping (checagem de status do serviço)
   if (action === "ping") {
     return {
       version,
@@ -50,7 +54,7 @@ export const getNextScreen = async (decryptedBody) => {
     };
   }
 
-  // handle error notification
+  // Lida com erros vindos da requisição
   if (data?.error) {
     console.warn("Received client error:", data);
     return {
@@ -61,32 +65,42 @@ export const getNextScreen = async (decryptedBody) => {
     };
   }
 
-  // handle initial request when opening the flow and display account screen
+  // Captura e envia os dados de troca de tela para o endpoint
+  const payload = {
+    screen,
+    data,
+    flow_token,
+    version,
+  };
+  await sendDataToEndpoint(payload);
+
+  // Lida com a inicialização do fluxo (action: INIT)
   if (action === "INIT") {
     return {
       ...SCREEN_RESPONSES.account,
     };
   }
 
+  // Lida com troca de dados e de telas (action: data_exchange)
   if (action === "data_exchange") {
     switch (screen) {
-      // handles user interacting with account screen
+      // Manipula a interação com a tela de conta
       case "account":
-        // If user proceeds from account screen, show the infos screen
+        // Se o usuário continuar da tela de conta, navega para a tela de informações
         return {
           ...SCREEN_RESPONSES.infos,
         };
 
-      // handles user interacting with infos screen
+      // Manipula a interação com a tela de informações
       case "infos":
-        // After completing infos screen, navigate to address screen
+        // Após a tela de informações, navega para a tela de endereço
         return {
           ...SCREEN_RESPONSES.address,
         };
 
-      // handles user interacting with address screen
+      // Manipula a interação com a tela de endereço
       case "address":
-        // After completing address screen, send success response
+        // Após completar a tela de endereço, envia a resposta de sucesso
         return {
           ...SCREEN_RESPONSES.SUCCESS,
         };
@@ -96,6 +110,7 @@ export const getNextScreen = async (decryptedBody) => {
     }
   }
 
+  // Caso uma ação não seja reconhecida
   console.error("Unhandled request body:", decryptedBody);
   throw new Error(
     "Unhandled endpoint request. Make sure you handle the request action & screen logged above."
