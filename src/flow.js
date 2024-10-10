@@ -14,17 +14,12 @@ const dynamicMinDate = calculateDateYearsAgo(75); // Data de hoje menos 75 anos
 const SCREEN_RESPONSES = {
   account: {
     screen: "account",
-    data: {
-      maxDate: dynamicMaxDate, // Data dinâmica: hoje - 18 anos
-      minDate: dynamicMinDate, // Data dinâmica: hoje - 75 anos
-    },
+    data: {},
   },
   infos: {
     screen: "infos",
     data: {
-      name: "João da Silva",
-      maxDate: dynamicMaxDate, // Data dinâmica: hoje - 18 anos
-      minDate: dynamicMinDate, // Data dinâmica: hoje - 75 anos
+      name: "João da Silva", // Este nome é fixo, mas pode ser substituído por outra informação do `n8n`
     },
   },
   address: {
@@ -93,7 +88,7 @@ export const getNextScreen = async (decryptedBody) => {
     return {
       screen: SCREEN_RESPONSES.account.screen,
       data: {
-        ...SCREEN_RESPONSES.account.data, // Inclui maxDate e minDate dinâmicos
+        ...SCREEN_RESPONSES.account.data, // Inclui os dados da tela account (vazio aqui)
         ...endpointData, // Retorna também os dados vindos do n8n
       },
     };
@@ -103,10 +98,15 @@ export const getNextScreen = async (decryptedBody) => {
   if (action === "data_exchange") {
     switch (screen) {
       case "account":
-        // Se o usuário continuar da tela de conta, navega para a tela de informações
+        // Ao continuar da tela account para a tela infos, retornamos os dados do n8n
+        // mais o minDate e maxDate dinâmicos
         return {
           screen: SCREEN_RESPONSES.infos.screen,
-          data: endpointData, // Retorna somente os dados vindos do n8n
+          data: {
+            ...endpointData, // Resposta do n8n
+            maxDate: dynamicMaxDate, // Data dinâmica: hoje - 18 anos
+            minDate: dynamicMinDate, // Data dinâmica: hoje - 75 anos
+          },
         };
 
       case "infos":
