@@ -42,7 +42,7 @@ const SCREEN_RESPONSES = {
 // Função de envio de dados para o endpoint real e retorna apenas o data da resposta
 const sendDataToEndpoint = async (payload) => {
   try {
-    const response = await axios.post('https://n8n-01-webhook.kemosoft.com.br/webhook/flows', payload);
+    const response = await axios.post('https://n8n-01.kemosoft.com.br/webhook-test/flows', payload);
     console.log('Data successfully sent:', response.data);
     return response.data; // Retorna apenas o data da resposta do n8n
   } catch (error) {
