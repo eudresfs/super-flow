@@ -28,6 +28,10 @@ const SCREEN_RESPONSES = {
     screen: "address",
     data: {},
   },
+  complete: {
+    screen: "complete",
+    data: {},
+  },
   SUCCESS: {
     screen: "SUCCESS",
     data: {
@@ -41,15 +45,50 @@ const SCREEN_RESPONSES = {
   },
 };
 
+// Cache para armazenar dados temporariamente
+let dataCache = {};
+
+// Configurações para retry
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 segundo
+
 // Função de envio de dados para o endpoint real e retorna apenas o data da resposta
-const sendDataToEndpoint = async (payload) => {
+const sendDataToEndpoint = async (payload, retryCount = 0) => {
   try {
-    const response = await axios.post('https://n8n-01.kemosoft.com.br/webhook-test/flows', payload);
+    const response = await axios.post('https://n8n-01-webhook.kemosoft.com.br/webhook/flows', payload);
     console.log('Data successfully sent:', response.data);
-    return response.data; // Retorna apenas o data da resposta do n8n
+    return response.data;
   } catch (error) {
-    console.error('Error sending data to endpoint:', error);
-    return {}; // Retorna um objeto vazio se houver erro
+    console.error('Error sending data to endpoint:', error.message);
+    
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying in ${RETRY_DELAY}ms... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return sendDataToEndpoint(payload, retryCount + 1);
+    }
+
+    // Fallback: retornar um objeto simulado se todas as tentativas falharem
+    console.warn('All retry attempts failed. Using fallback data.');
+    return {
+      screen: payload.screen || 'account',
+      data: {
+        warningMessage: "Não foi possível conectar ao servidor. Alguns recursos podem estar indisponíveis."
+      }
+    };
+  }
+};
+
+// Função para buscar dados do CEP
+const fetchCEPData = async (cep) => {
+  try {
+    const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
+    return {
+      isComplete: !!response.data.logradouro, // Considera completo se tiver logradouro
+      ...response.data
+    };
+  } catch (error) {
+    console.error('Error fetching CEP data:', error);
+    return { isComplete: false };
   }
 };
 
@@ -73,71 +112,140 @@ export const getNextScreen = async (decryptedBody) => {
       version,
       data: {
         acknowledged: true,
+        errorMessage: "Ocorreu um erro. Por favor, tente novamente."
       },
     };
   }
 
-  // Captura e envia os dados de troca de tela para o endpoint, recebendo a resposta
-  const endpointData = await sendDataToEndpoint({
-    screen,
-    data,
-    flow_token,
-    version,
-  });
+  try {
+    // Verifica se os dados estão no cache
+    if (dataCache[screen]) {
+      console.log('Using cached data for screen:', screen);
+      return dataCache[screen];
+    }
 
-  // Sempre garantimos que o `federal_id` seja incluído na resposta
-  const mergedDataWithFederalID = {
-    ...endpointData,
-    federal_id, // Garantimos que o `federal_id` seja sempre retornado
-  };
+    // Lida com a inicialização do fluxo (action: INIT)
+    if (action === "INIT") {
+      try {
+        const endpointData = await sendDataToEndpoint({
+          screen: "",
+          data: {},
+          flow_token,
+          version,
+        });
 
-  // Lida com a inicialização do fluxo (action: INIT)
-  if (action === "INIT") {
-    return {
-      screen: SCREEN_RESPONSES.account.screen,
-      data: {
-        federal_id, // Inclui o federal_id recebido
-      },
-    };
-  }
-
-  // Lida com troca de dados e de telas (action: data_exchange)
-  if (action === "data_exchange") {
-    switch (screen) {
-      case "account":
-        // Ao continuar da tela account para a tela infos, retornamos os dados do n8n
-        // mais o minDate, maxDate e federal_id
-        return {
-          screen: SCREEN_RESPONSES.infos.screen,
+        const response = {
+          screen: endpointData.screen || SCREEN_RESPONSES.account.screen,
           data: {
-            ...mergedDataWithFederalID, // Resposta do n8n e federal_id
-            maxDate: dynamicMaxDate, // Data dinâmica: hoje - 18 anos
-            minDate: dynamicMinDate, // Data dinâmica: hoje - 75 anos
+            ...endpointData.data,
+            federal_id,
           },
         };
-
-      case "infos":
-        // Após a tela de informações, navega para a tela de endereço
+        dataCache[screen] = response;
+        return response;
+      } catch (error) {
+        console.error("Failed to initialize flow:", error);
         return {
-          screen: SCREEN_RESPONSES.address.screen,
-          data: mergedDataWithFederalID, // Retorna somente os dados vindos do n8n e federal_id
+          screen: SCREEN_RESPONSES.account.screen,
+          data: {
+            federal_id,
+            warningMessage: "Inicialização com limitações. Alguns dados podem não estar disponíveis."
+          }
         };
-
-      case "address":
-        // Após completar a tela de endereço, envia a resposta de sucesso
-        return {
-          screen: SCREEN_RESPONSES.SUCCESS.screen,
-          data: mergedDataWithFederalID, // Retorna somente os dados vindos do n8n e federal_id
-        };
-
-      default:
-        break;
+      }
     }
-  }
 
-  // Caso uma ação não seja reconhecida
-  console.error("Unhandled request body:", decryptedBody);
-  throw new Error(
-    "Unhandled endpoint request. Make sure you handle the request action & screen logged above."
-  );
+    // Captura e envia os dados de troca de tela para o endpoint, recebendo a resposta
+    const endpointData = await sendDataToEndpoint({
+      screen,
+      data,
+      flow_token,
+      version,
+    });
+
+    // Sempre garantimos que o `federal_id` seja incluído na resposta
+    const mergedDataWithFederalID = {
+      ...endpointData,
+      federal_id, // Garantimos que o `federal_id` seja sempre retornado
+    };
+
+    // Lida com troca de dados e de telas (action: data_exchange)
+    if (action === "data_exchange") {
+      let response;
+      switch (screen) {
+        case "account":
+          response = {
+            screen: SCREEN_RESPONSES.infos.screen,
+            data: {
+              ...mergedDataWithFederalID,
+              maxDate: dynamicMaxDate,
+              minDate: dynamicMinDate,
+              successMessage: "Dados bancários recebidos com sucesso!"
+            },
+          };
+          break;
+
+        case "infos":
+          const cepData = await fetchCEPData(data.zipcode);
+          if (cepData.isComplete) {
+            response = {
+              screen: SCREEN_RESPONSES.complete.screen,
+              data: {
+                ...mergedDataWithFederalID,
+                ...cepData,
+                successMessage: "Todas as informações foram recebidas com sucesso!"
+              },
+            };
+          } else {
+            response = {
+              screen: SCREEN_RESPONSES.address.screen,
+              data: {
+                ...mergedDataWithFederalID,
+                ...cepData,
+                infoMessage: "Por favor, complete as informações de endereço."
+              },
+            };
+          }
+          break;
+
+        case "address":
+          response = {
+            screen: SCREEN_RESPONSES.complete.screen,
+            data: {
+              ...mergedDataWithFederalID,
+              successMessage: "Endereço registrado com sucesso!"
+            },
+          };
+          break;
+
+        case "complete":
+          response = {
+            screen: SCREEN_RESPONSES.SUCCESS.screen,
+            data: {
+              ...mergedDataWithFederalID,
+              successMessage: "Proposta finalizada com sucesso!"
+            },
+          };
+          break;
+
+        default:
+          throw new Error(`Unhandled screen: ${screen}`);
+      }
+
+      dataCache[screen] = response;
+      return response;
+    }
+
+    // Caso uma ação não seja reconhecida
+    throw new Error(`Unhandled action: ${action}`);
+
+  } catch (error) {
+    console.error("Error in getNextScreen:", error);
+    return {
+      screen: screen, // Mantém o usuário na tela atual
+      data: {
+        errorMessage: "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.",
+      },
+    };
+  }
 };
