@@ -119,7 +119,7 @@ const fetchCEPData = async (cep) => {
     return response.data;
   } catch (error) {
     console.error('Erro ao buscar os dados do CEP:', error.message);
-    throw new Error('Erro ao buscar CEP');
+    throw new Error('CEP não localizado');
   }
 };
 
@@ -141,23 +141,23 @@ export const getNextScreen = async (decryptedBody) => {
   console.log(`Processando CPF: ${cpf}`);  // Log para verificar se o CPF está sendo extraído corretamente
 
   if (action === "ping") {
-    return { version, data: { status: "active", error: false }}; // Adicionando o campo error
+    return { version, data: { status: "active", error: false, errorMessage: "não houveram erros" }}; // Adicionando o campo errorMessage com valor padrão
   }
 
   if (data?.error) {
-    return { version, data: { acknowledged: true, errorMessage: "Ocorreu um erro. Tente novamente.", error: true }}; // Adicionando o campo error
+    return { version, data: { acknowledged: true, errorMessage: "Ocorreu um erro. Tente novamente.", error: true }};
   }
 
   try {
     const cachedData = getCachedData(screen, data);
     if (cachedData) {
       console.log('Using cached data for screen:', screen);
-      return { ...cachedData, cpf, error: false };  // Inclui o CPF e o campo error no cache também
+      return { ...cachedData, cpf, error: false, errorMessage: "não houveram erros" };  // Inclui o CPF, error, e errorMessage no cache também
     }
 
     if (action === "INIT") {
       const endpointData = await sendDataToEndpoint({ screen: "", data: {}, flow_token, version });
-      const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, cpf, error: false }};
+      const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, cpf, error: false, errorMessage: "não houveram erros" }};
       setCachedData(screen, response);
       return response;
     }
@@ -170,20 +170,20 @@ export const getNextScreen = async (decryptedBody) => {
     let response;
     switch (screen) {
       case "account":
-        response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, maxDate: dynamicMaxDate, minDate: dynamicMinDate, cpf, error: false }};
+        response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, maxDate: dynamicMaxDate, minDate: dynamicMinDate, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
       case "infos":
         console.log('CEP antes da chamada fetchCEPData:', data.cep);
         const cepData = await fetchCEPData(data.cep);
         response = cepData.error
           ? { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, errorMessage: cepData.error, cpf, error: true }}
-          : { screen: cepData.isComplete ? SCREEN_RESPONSES.complete.screen : SCREEN_RESPONSES.address.screen, data: { ...mergedDataWithCPF, ...cepData, cpf, error: false }};
+          : { screen: cepData.isComplete ? SCREEN_RESPONSES.complete.screen : SCREEN_RESPONSES.address.screen, data: { ...mergedDataWithCPF, ...cepData, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
       case "address":
-        response = { screen: SCREEN_RESPONSES.complete.screen, data: { ...mergedDataWithCPF, cpf, error: false }};
+        response = { screen: SCREEN_RESPONSES.complete.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
       case "complete":
-        response = { screen: SCREEN_RESPONSES.SUCCESS.screen, data: { ...mergedDataWithCPF, cpf, error: false }};
+        response = { screen: SCREEN_RESPONSES.SUCCESS.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
       default:
         throw new Error(`Tela não reconhecida: ${screen}`);
