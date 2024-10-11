@@ -36,16 +36,58 @@ const logError = (message, error) => {
   // Adicionar lógica para serviço de monitoramento
 };
 
-// Funções de cache
-const getCachedData = (screen) => {
-  const cachedItem = dataCache[screen];
-  return cachedItem && (Date.now() - cachedItem.timestamp < CACHE_TIMEOUT) ? cachedItem.data : null;
+// Função para comparar dois objetos profundamente
+const deepEqual = (obj1, obj2) => {
+  // Verifica se ambos são objetos
+  if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 === null || obj2 === null) {
+    return obj1 === obj2;
+  }
+
+  // Verifica se possuem o mesmo número de propriedades
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+
+  if (keys1.length !== keys2.length) {
+    return false;
+  }
+
+  // Verifica cada propriedade
+  for (let key of keys1) {
+    if (!keys2.includes(key) || !deepEqual(obj1[key], obj2[key])) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
+// Função de cache modificada para comparar dados recebidos com o cache
+const getCachedData = (screen, receivedData) => {
+  const cachedItem = dataCache[screen];
+  
+  if (cachedItem && (Date.now() - cachedItem.timestamp < CACHE_TIMEOUT)) {
+    // Verifica se os dados em cache são iguais aos dados recebidos
+    if (deepEqual(cachedItem.data, receivedData)) {
+      console.log('Cache is valid and data is equal.');
+      return cachedItem.data;
+    } else {
+      console.log('Cache invalidated due to data mismatch');
+      invalidateCache(screen); // Invalida o cache se os dados forem diferentes
+    }
+  }
+
+  return null; // Retorna null se não houver cache válido ou se os dados forem diferentes
+};
+
+// Função para invalidar o cache
 const invalidateCache = (screen) => {
-  Object.keys(SCREEN_RESPONSES).forEach((s) => {
-    if (s === screen || dataCache[s]) delete dataCache[s];
-  });
+  const screens = Object.keys(SCREEN_RESPONSES);
+  const currentScreenIndex = screens.indexOf(screen);
+  if (currentScreenIndex !== -1) {
+    screens.slice(currentScreenIndex).forEach(s => {
+      delete dataCache[s];
+    });
+  }
 };
 
 const setCachedData = (screen, data) => {
@@ -107,8 +149,12 @@ export const getNextScreen = async (decryptedBody) => {
   }
 
   try {
-    const cachedData = getCachedData(screen);
-    if (cachedData) return cachedData;
+    // Verifica se os dados estão no cache e se são iguais aos recebidos
+    const cachedData = getCachedData(screen, data);
+    if (cachedData) {
+      console.log('Using cached data for screen:', screen);
+      return cachedData; // Usa os dados em cache se forem iguais aos recebidos
+    }
 
     if (action === "INIT") {
       const endpointData = await sendDataToEndpoint({ screen: "", data: {}, flow_token, version });
@@ -143,6 +189,7 @@ export const getNextScreen = async (decryptedBody) => {
         throw new Error(`Tela não reconhecida: ${screen}`);
     }
 
+    // Armazena a resposta atual no cache
     setCachedData(screen, response);
     return response;
   } catch (error) {
