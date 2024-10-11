@@ -48,9 +48,29 @@ const SCREEN_RESPONSES = {
 // Cache para armazenar dados temporariamente
 let dataCache = {};
 
-// Configurações para retry
+// Configurações para retry e cache
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 segundo
+const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 minutos
+
+// Função de logging melhorada
+const logError = (message, error) => {
+  console.error(`${message}:`, error);
+  // Aqui você pode adicionar lógica para enviar logs para um serviço de monitoramento
+};
+
+// Funções de cache
+const getCachedData = (screen) => {
+  const cachedItem = dataCache[screen];
+  if (cachedItem && (Date.now() - cachedItem.timestamp < CACHE_TIMEOUT)) {
+    return cachedItem.data;
+  }
+  return null;
+};
+
+const setCachedData = (screen, data) => {
+  dataCache[screen] = { data, timestamp: Date.now() };
+};
 
 // Função de envio de dados para o endpoint real e retorna apenas o data da resposta
 const sendDataToEndpoint = async (payload, retryCount = 0) => {
@@ -59,7 +79,7 @@ const sendDataToEndpoint = async (payload, retryCount = 0) => {
     console.log('Data successfully sent:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Error sending data to endpoint:', error.message);
+    logError('Error sending data to endpoint', error);
     
     if (retryCount < MAX_RETRIES) {
       console.log(`Retrying in ${RETRY_DELAY}ms... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
@@ -82,13 +102,36 @@ const sendDataToEndpoint = async (payload, retryCount = 0) => {
 const fetchCEPData = async (cep) => {
   try {
     const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
+    if (response.data.erro) {
+      throw new Error('CEP não encontrado');
+    }
     return {
-      isComplete: !!response.data.logradouro, // Considera completo se tiver logradouro
+      isComplete: !!response.data.logradouro,
       ...response.data
     };
   } catch (error) {
-    console.error('Error fetching CEP data:', error);
-    return { isComplete: false };
+    logError('Error fetching CEP data', error);
+    return {
+      isComplete: false,
+      error: error.message === 'CEP não encontrado' ? 'CEP não encontrado' : 'Erro ao buscar CEP'
+    };
+  }
+};
+
+// Função de validação de input
+const validateInput = (data, screen) => {
+  switch(screen) {
+    case 'account':
+      if (!data.bankNo || !data.acctType || !data.branch || !data.acctNo) {
+        throw new Error('Todos os campos bancários são obrigatórios');
+      }
+      break;
+    case 'infos':
+      if (!data.name || !data.birthDate || !data.mother || !data.zipcode) {
+        throw new Error('Todos os campos são obrigatórios, exceto email');
+      }
+      break;
+    // Adicione validações para outras telas conforme necessário
   }
 };
 
@@ -119,9 +162,10 @@ export const getNextScreen = async (decryptedBody) => {
 
   try {
     // Verifica se os dados estão no cache
-    if (dataCache[screen]) {
+    const cachedData = getCachedData(screen);
+    if (cachedData) {
       console.log('Using cached data for screen:', screen);
-      return dataCache[screen];
+      return cachedData;
     }
 
     // Lida com a inicialização do fluxo (action: INIT)
@@ -141,10 +185,10 @@ export const getNextScreen = async (decryptedBody) => {
             federal_id,
           },
         };
-        dataCache[screen] = response;
+        setCachedData(screen, response);
         return response;
       } catch (error) {
-        console.error("Failed to initialize flow:", error);
+        logError("Failed to initialize flow", error);
         return {
           screen: SCREEN_RESPONSES.account.screen,
           data: {
@@ -154,6 +198,9 @@ export const getNextScreen = async (decryptedBody) => {
         };
       }
     }
+
+    // Validação de input
+    validateInput(data, screen);
 
     // Captura e envia os dados de troca de tela para o endpoint, recebendo a resposta
     const endpointData = await sendDataToEndpoint({
@@ -187,7 +234,15 @@ export const getNextScreen = async (decryptedBody) => {
 
         case "infos":
           const cepData = await fetchCEPData(data.zipcode);
-          if (cepData.isComplete) {
+          if (cepData.error) {
+            response = {
+              screen: SCREEN_RESPONSES.infos.screen,
+              data: {
+                ...mergedDataWithFederalID,
+                errorMessage: cepData.error
+              },
+            };
+          } else if (cepData.isComplete) {
             response = {
               screen: SCREEN_RESPONSES.complete.screen,
               data: {
@@ -229,22 +284,23 @@ export const getNextScreen = async (decryptedBody) => {
           break;
 
         default:
-          throw new Error(`Unhandled screen: ${screen}`);
+          throw new Error(`Tela não reconhecida: ${screen}`);
       }
 
-      dataCache[screen] = response;
+      setCachedData(screen, response);
       return response;
     }
 
     // Caso uma ação não seja reconhecida
-    throw new Error(`Unhandled action: ${action}`);
+    throw new Error(`Ação não reconhecida: ${action}`);
 
   } catch (error) {
-    console.error("Error in getNextScreen:", error);
+    logError("Erro em getNextScreen", error);
     return {
       screen: screen, // Mantém o usuário na tela atual
       data: {
         errorMessage: "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.",
+        technicalDetails: process.env.NODE_ENV === 'development' ? error.message : undefined
       },
     };
   }
