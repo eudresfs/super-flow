@@ -18,7 +18,7 @@ const SCREEN_RESPONSES = {
   complete: { screen: "complete", data: {} },
   SUCCESS: {
     screen: "SUCCESS",
-    data: { extension_message_response: { params: { flow_token: "REPLACE_FLOW_TOKEN", some_param_name: "PASS_CUSTOM_VALUE" }}},
+    data: { extension_message_response: { params: { flow_token: "REPLACE_FLOW_TOKEN", some_param_name: "PASS_CUSTOM_VALUE" } }},
   },
 };
 
@@ -33,23 +33,21 @@ const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 minutos
 // Função de logging melhorada
 const logError = (message, error) => {
   console.error(`${message}:`, error);
-  // Adicionar lógica para serviço de monitoramento
 };
 
 // Função para comparar dois objetos profundamente
 const deepEqual = (obj1, obj2) => {
-  if (obj1 === obj2) return true; // Se os objetos forem exatamente iguais, retorna true
+  if (obj1 === obj2) return true;
   if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 === null || obj2 === null) return false;
 
   const keys1 = Object.keys(obj1);
   const keys2 = Object.keys(obj2);
 
-  if (keys1.length !== keys2.length) return false; // Se o número de propriedades for diferente, são diferentes
+  if (keys1.length !== keys2.length) return false;
 
-  // Verifica cada chave e valor
   for (let key of keys1) {
-    if (!keys2.includes(key)) return false; // Se uma chave não existe no outro objeto, são diferentes
-    if (!deepEqual(obj1[key], obj2[key])) return false; // Recursivamente compara cada valor
+    if (!keys2.includes(key)) return false;
+    if (!deepEqual(obj1[key], obj2[key])) return false;
   }
 
   return true;
@@ -60,17 +58,16 @@ const getCachedData = (screen, receivedData) => {
   const cachedItem = dataCache[screen];
   
   if (cachedItem && (Date.now() - cachedItem.timestamp < CACHE_TIMEOUT)) {
-    // Verifica se os dados em cache são iguais aos dados recebidos
     if (deepEqual(cachedItem.data, receivedData)) {
       console.log('Cache is valid and data is equal.');
       return cachedItem.data;
     } else {
       console.log('Cache invalidated due to data mismatch');
-      invalidateCache(screen); // Invalida o cache se os dados forem diferentes
+      invalidateCache(screen);
     }
   }
 
-  return null; // Retorna null se não houver cache válido ou se os dados forem diferentes
+  return null;
 };
 
 // Função para invalidar o cache
@@ -103,22 +100,28 @@ const sendDataToEndpoint = async (data) => {
   }
 };
 
-
 // Função para buscar dados do CEP
 const fetchCEPData = async (cep) => {
+  console.log(`Iniciando busca para o CEP: ${cep}`);  // Log para saber o valor do CEP recebido
+
   try {
     if (!cep || !/^\d{8}$/.test(cep)) {
+      console.error('CEP inválido:', cep);
       throw new Error('CEP inválido');
     }
+
+    console.log(`Fazendo requisição para: https://brasilapi.com.br/api/cep/v1/${cep}`);
+
     const response = await axios.get(`https://brasilapi.com.br/api/cep/v1/${cep}`);
+
+    console.log('Dados retornados pela API:', response.data);
+
     return response.data;
   } catch (error) {
-    console.error('Error fetching CEP data:', error.message);
+    console.error('Erro ao buscar os dados do CEP:', error.message);
     throw new Error('Erro ao buscar CEP');
   }
 };
-
-
 
 // Função de validação de input
 const validateInput = (data, screen) => {
@@ -143,17 +146,16 @@ export const getNextScreen = async (decryptedBody) => {
   }
 
   try {
-    // Verifica se os dados estão no cache e se são iguais aos recebidos
     const cachedData = getCachedData(screen, data);
     if (cachedData) {
       console.log('Using cached data for screen:', screen);
-      return cachedData; // Usa os dados em cache se forem iguais aos recebidos
+      return cachedData;
     }
 
     if (action === "INIT") {
       const endpointData = await sendDataToEndpoint({ screen: "", data: {}, flow_token, version });
       const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, federal_id }};
-      setCachedData(screen, response); // Armazena a resposta no cache
+      setCachedData(screen, response);
       return response;
     }
 
@@ -168,6 +170,7 @@ export const getNextScreen = async (decryptedBody) => {
         response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithFederalID, maxDate: dynamicMaxDate, minDate: dynamicMinDate }};
         break;
       case "infos":
+        console.log('CEP antes da chamada fetchCEPData:', data.cep);
         const cepData = await fetchCEPData(data.cep);
         response = cepData.error
           ? { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithFederalID, errorMessage: cepData.error }}
@@ -183,7 +186,6 @@ export const getNextScreen = async (decryptedBody) => {
         throw new Error(`Tela não reconhecida: ${screen}`);
     }
 
-    // Armazena a resposta atual no cache
     setCachedData(screen, response);
     return response;
   } catch (error) {
