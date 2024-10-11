@@ -12,7 +12,7 @@ const dynamicMaxDate = calculateDateYearsAgo(18); // Data de hoje menos 18 anos
 const dynamicMinDate = calculateDateYearsAgo(75); // Data de hoje menos 75 anos
 
 const SCREEN_RESPONSES = {
-  account: { screen: "account", data: { federal_id: "" }},
+  account: { screen: "account", data: { cpf: "" }},
   infos: { screen: "infos", data: { name: "João da Silva" }},
   address: { screen: "address", data: {} },
   complete: { screen: "complete", data: {} },
@@ -135,7 +135,10 @@ const validateInput = (data, screen) => {
 
 // Função principal para controle de fluxo
 export const getNextScreen = async (decryptedBody) => {
-  const { screen, data, version, action, flow_token, federal_id } = decryptedBody;
+  const { screen, data, version, action, flow_token } = decryptedBody;
+
+  const cpf = data?.cpf;  // Corrigindo o acesso ao CPF dentro do objeto data
+  console.log(`Processando CPF: ${cpf}`);  // Log para verificar se o CPF está sendo extraído corretamente
 
   if (action === "ping") {
     return { version, data: { status: "active" }};
@@ -149,12 +152,12 @@ export const getNextScreen = async (decryptedBody) => {
     const cachedData = getCachedData(screen, data);
     if (cachedData) {
       console.log('Using cached data for screen:', screen);
-      return cachedData;
+      return { ...cachedData, cpf };  // Inclui o CPF no cache também
     }
 
     if (action === "INIT") {
       const endpointData = await sendDataToEndpoint({ screen: "", data: {}, flow_token, version });
-      const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, federal_id }};
+      const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, cpf }};
       setCachedData(screen, response);
       return response;
     }
@@ -162,25 +165,25 @@ export const getNextScreen = async (decryptedBody) => {
     validateInput(data, screen);
     
     const endpointData = await sendDataToEndpoint({ screen, data, flow_token, version });
-    const mergedDataWithFederalID = { ...endpointData, federal_id };
+    const mergedDataWithCPF = { ...endpointData, cpf };  // Certifique-se de incluir o CPF
 
     let response;
     switch (screen) {
       case "account":
-        response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithFederalID, maxDate: dynamicMaxDate, minDate: dynamicMinDate }};
+        response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, maxDate: dynamicMaxDate, minDate: dynamicMinDate, cpf }};
         break;
       case "infos":
         console.log('CEP antes da chamada fetchCEPData:', data.cep);
         const cepData = await fetchCEPData(data.cep);
         response = cepData.error
-          ? { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithFederalID, errorMessage: cepData.error }}
-          : { screen: cepData.isComplete ? SCREEN_RESPONSES.complete.screen : SCREEN_RESPONSES.address.screen, data: { ...mergedDataWithFederalID, ...cepData }};
+          ? { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, errorMessage: cepData.error, cpf }}
+          : { screen: cepData.isComplete ? SCREEN_RESPONSES.complete.screen : SCREEN_RESPONSES.address.screen, data: { ...mergedDataWithCPF, ...cepData, cpf }};
         break;
       case "address":
-        response = { screen: SCREEN_RESPONSES.complete.screen, data: { ...mergedDataWithFederalID }};
+        response = { screen: SCREEN_RESPONSES.complete.screen, data: { ...mergedDataWithCPF, cpf }};
         break;
       case "complete":
-        response = { screen: SCREEN_RESPONSES.SUCCESS.screen, data: { ...mergedDataWithFederalID }};
+        response = { screen: SCREEN_RESPONSES.SUCCESS.screen, data: { ...mergedDataWithCPF, cpf }};
         break;
       default:
         throw new Error(`Tela não reconhecida: ${screen}`);
