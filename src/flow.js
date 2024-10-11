@@ -89,53 +89,35 @@ const setCachedData = (screen, data) => {
 };
 
 // Função de envio com retry e fallback
-const sendDataToEndpoint = async (payload, retryCount = 0) => {
+const sendDataToEndpoint = async (data) => {
   try {
-    const response = await axios.post('https://n8n-01-webhook.kemosoft.com.br/webhook/flows', payload);
-    console.log('Data successfully sent:', response.data);
+    const response = await axios.post('https://n8n-01-webhook.kemosoft.com.br/webhook/flows', data);
     return response.data;
   } catch (error) {
-    logError('Error sending data to endpoint', error);
-    
-    if (retryCount < MAX_RETRIES) {
-      console.log(`Retrying in ${RETRY_DELAY}ms... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      return sendDataToEndpoint(payload, retryCount + 1);
+    if (error.response) {
+      console.error(`Error: ${error.response.status} - ${error.response.data.message}`);
+    } else {
+      console.error(`Request error: ${error.message}`);
     }
-
-    console.warn('All retry attempts failed. Using fallback data.');
-    return { screen: payload.screen || 'account', data: { warningMessage: "Não foi possível conectar ao servidor." }};
+    throw error;
   }
 };
+
 
 // Função para buscar dados do CEP
 const fetchCEPData = async (cep) => {
   try {
-    // Verifica se o CEP está definido e se tem o formato correto (8 dígitos)
-    if (!cep || cep.length !== 8 || isNaN(cep)) {
+    if (!cep || !/^\d{8}$/.test(cep)) {
       throw new Error('CEP inválido');
     }
-
-    // Faz a requisição para a API ViaCEP com o CEP correto
-    const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
-
-    if (response.data.erro) {
-      throw new Error('CEP não encontrado');
-    }
-
-    // Retorna os dados caso a resposta seja bem-sucedida
-    return {
-      isComplete: !!response.data.logradouro,
-      ...response.data
-    };
+    const response = await axios.get(`https://brasilapi.com.br/api/cep/v1/${cep}`);
+    return response.data;
   } catch (error) {
-    logError('Error fetching CEP data', error);
-    return {
-      isComplete: false,
-      error: error.message === 'CEP não encontrado' ? 'CEP não encontrado' : 'Erro ao buscar CEP'
-    };
+    console.error('Error fetching CEP data:', error.message);
+    throw new Error('Erro ao buscar CEP');
   }
 };
+
 
 
 // Função de validação de input
@@ -186,7 +168,7 @@ export const getNextScreen = async (decryptedBody) => {
         response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithFederalID, maxDate: dynamicMaxDate, minDate: dynamicMinDate }};
         break;
       case "infos":
-        const cepData = await fetchCEPData(data.zipcode);
+        const cepData = await fetchCEPData(data.cep);
         response = cepData.error
           ? { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithFederalID, errorMessage: cepData.error }}
           : { screen: cepData.isComplete ? SCREEN_RESPONSES.complete.screen : SCREEN_RESPONSES.address.screen, data: { ...mergedDataWithFederalID, ...cepData }};
