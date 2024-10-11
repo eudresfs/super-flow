@@ -38,24 +38,18 @@ const logError = (message, error) => {
 
 // Função para comparar dois objetos profundamente
 const deepEqual = (obj1, obj2) => {
-  // Verifica se ambos são objetos
-  if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 === null || obj2 === null) {
-    return obj1 === obj2;
-  }
+  if (obj1 === obj2) return true; // Se os objetos forem exatamente iguais, retorna true
+  if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 === null || obj2 === null) return false;
 
-  // Verifica se possuem o mesmo número de propriedades
   const keys1 = Object.keys(obj1);
   const keys2 = Object.keys(obj2);
 
-  if (keys1.length !== keys2.length) {
-    return false;
-  }
+  if (keys1.length !== keys2.length) return false; // Se o número de propriedades for diferente, são diferentes
 
-  // Verifica cada propriedade
+  // Verifica cada chave e valor
   for (let key of keys1) {
-    if (!keys2.includes(key) || !deepEqual(obj1[key], obj2[key])) {
-      return false;
-    }
+    if (!keys2.includes(key)) return false; // Se uma chave não existe no outro objeto, são diferentes
+    if (!deepEqual(obj1[key], obj2[key])) return false; // Recursivamente compara cada valor
   }
 
   return true;
@@ -117,20 +111,38 @@ const sendDataToEndpoint = async (payload, retryCount = 0) => {
 // Função para buscar dados do CEP
 const fetchCEPData = async (cep) => {
   try {
+    // Verifica se o CEP está definido e se tem o formato correto (8 dígitos)
+    if (!cep || cep.length !== 8 || isNaN(cep)) {
+      throw new Error('CEP inválido');
+    }
+
+    // Faz a requisição para a API ViaCEP com o CEP correto
     const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
-    if (response.data.erro) throw new Error('CEP não encontrado');
-    return { isComplete: !!response.data.logradouro, ...response.data };
+
+    if (response.data.erro) {
+      throw new Error('CEP não encontrado');
+    }
+
+    // Retorna os dados caso a resposta seja bem-sucedida
+    return {
+      isComplete: !!response.data.logradouro,
+      ...response.data
+    };
   } catch (error) {
     logError('Error fetching CEP data', error);
-    return { isComplete: false, error: error.message === 'CEP não encontrado' ? 'CEP não encontrado' : 'Erro ao buscar CEP' };
+    return {
+      isComplete: false,
+      error: error.message === 'CEP não encontrado' ? 'CEP não encontrado' : 'Erro ao buscar CEP'
+    };
   }
 };
+
 
 // Função de validação de input
 const validateInput = (data, screen) => {
   const requiredFields = {
     account: ['codigoBanco', 'tipoConta', 'agencia', 'conta'],
-    infos: ['name', 'birthDate', 'mother', 'zipcode'],
+    infos: ['nome', 'dataNascimento', 'nomeMae', 'cep'],
   };
   const missingFields = requiredFields[screen]?.filter(field => !data[field]);
   if (missingFields?.length) throw new Error(`Campos obrigatórios ausentes: ${missingFields.join(', ')}`);
@@ -159,7 +171,7 @@ export const getNextScreen = async (decryptedBody) => {
     if (action === "INIT") {
       const endpointData = await sendDataToEndpoint({ screen: "", data: {}, flow_token, version });
       const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, federal_id }};
-      setCachedData(screen, response);
+      setCachedData(screen, response); // Armazena a resposta no cache
       return response;
     }
 
