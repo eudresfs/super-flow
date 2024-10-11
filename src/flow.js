@@ -68,6 +68,17 @@ const getCachedData = (screen) => {
   return null;
 };
 
+// Função para invalidar o cache
+const invalidateCache = (screen) => {
+  const screens = Object.keys(SCREEN_RESPONSES);
+  const currentScreenIndex = screens.indexOf(screen);
+  if (currentScreenIndex !== -1) {
+    screens.slice(currentScreenIndex).forEach(s => {
+      delete dataCache[s];
+    });
+  }
+};
+
 const setCachedData = (screen, data) => {
   dataCache[screen] = { data, timestamp: Date.now() };
 };
