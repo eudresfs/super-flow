@@ -122,7 +122,7 @@ const fetchCEPData = async (cep) => {
 const validateInput = (data, screen) => {
   switch(screen) {
     case 'account':
-      if (!data.bankNo || !data.acctType || !data.branch || !data.acctNo) {
+      if (!data.codigoBanco || !data.tipoConta || !data.agencia || !data.conta) {
         throw new Error('Todos os campos bancários são obrigatórios');
       }
       break;
@@ -299,8 +299,8 @@ export const getNextScreen = async (decryptedBody) => {
     return {
       screen: screen, // Mantém o usuário na tela atual
       data: {
-        errorMessage: "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.",
-        technicalDetails: process.env.NODE_ENV === 'development' ? error.message : undefined
+        errorMessage: error.message || "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.",
+        technicalDetails: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
     };
   }
