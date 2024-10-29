@@ -88,7 +88,7 @@ const setCachedData = (screen, data) => {
 // Função de envio com retry e fallback
 const sendDataToEndpoint = async (data) => {
   try {
-    const response = await axios.post('https://n8n-01-webhook.kemosoft.com.br/webhook/flows', data);
+    const response = await axios.post('https://n8n-01.kemosoft.com.br/webhook-test/flows', data);
     return response.data;
   } catch (error) {
     if (error.response) {
