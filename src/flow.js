@@ -157,8 +157,17 @@ export const getNextScreen = async (decryptedBody) => {
     }
 
     if (action === "INIT") {
-      const endpointData = await sendDataToEndpoint({ screen: "", data: {}, flow_token, version });
-      const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, cpf, error: false, errorMessage: "não houveram erros" }};
+      const endpointData = await sendDataToEndpoint({ 
+        screen: "", 
+        data: { cpf, bancos_aceitos: SCREEN_RESPONSES.account.data.bancos_aceitos }, 
+        flow_token, 
+        version 
+      });
+      
+      const response = { 
+        screen: endpointData.screen || SCREEN_RESPONSES.account.screen, 
+        data: { ...endpointData.data, cpf, error: false, errorMessage: "não houveram erros" }
+      };
       setCachedData(screen, response);
       return response;
     }
