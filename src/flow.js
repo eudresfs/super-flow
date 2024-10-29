@@ -3,7 +3,7 @@ import axios from 'axios';
 // Função para calcular a data de hoje menos X anos
 const calculateDateYearsAgo = (yearsAgo) => {
   const today = new Date();
-  const pastDate = new Date(today.setFullYear(today.getFullYear() - yearsAgo));
+  const pastDate = new Date(today.getFullYear() - yearsAgo, today.getMonth(), today.getDate());
   return pastDate.toISOString().split('T')[0]; // Formato "YYYY-MM-DD"
 };
 
@@ -12,7 +12,7 @@ const dynamicMaxDate = calculateDateYearsAgo(18); // Data de hoje menos 18 anos
 const dynamicMinDate = calculateDateYearsAgo(75); // Data de hoje menos 75 anos
 
 const SCREEN_RESPONSES = {
-  account: { screen: "account", data: { cpf: "" }},
+  account: { screen: "account", data: { cpf: "", bancos_aceitos: [] }},
   infos: { screen: "infos", data: { name: "João da Silva" }},
   address: { screen: "address", data: {} },
   complete: { screen: "complete", data: {} },
@@ -56,7 +56,7 @@ const deepEqual = (obj1, obj2) => {
 // Função de cache modificada para comparar dados recebidos com o cache
 const getCachedData = (screen, receivedData) => {
   const cachedItem = dataCache[screen];
-  
+
   if (cachedItem && (Date.now() - cachedItem.timestamp < CACHE_TIMEOUT)) {
     if (deepEqual(cachedItem.data, receivedData)) {
       console.log('Cache is valid and data is equal.');
@@ -87,22 +87,29 @@ const setCachedData = (screen, data) => {
 
 // Função de envio com retry e fallback
 const sendDataToEndpoint = async (data) => {
-  try {
-    const response = await axios.post('https://n8n-01.kemosoft.com.br/webhook-test/flows', data);
-    return response.data;
-  } catch (error) {
-    if (error.response) {
-      console.error(`Error: ${error.response.status} - ${error.response.data.message}`);
-    } else {
-      console.error(`Request error: ${error.message}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await axios.post('https://n8n-01.kemosoft.com.br/webhook-test/flows', data);
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        console.error(`Error: ${error.response.status} - ${error.response.data.message}`);
+      } else {
+        console.error(`Request error: ${error.message}`);
+      }
+
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      } else {
+        throw error;
+      }
     }
-    throw error;
   }
 };
 
 // Função para buscar dados do CEP
 const fetchCEPData = async (cep) => {
-  console.log(`Iniciando busca para o CEP: ${cep}`);  // Log para saber o valor do CEP recebido
+  console.log(`Iniciando busca para o CEP: ${cep}`);
 
   try {
     if (!cep || !/^\d{8}$/.test(cep)) {
@@ -137,11 +144,11 @@ const validateInput = (data, screen) => {
 export const getNextScreen = async (decryptedBody) => {
   const { screen, data, version, action, flow_token } = decryptedBody;
 
-  const cpf = data?.cpf;  // Corrigindo o acesso ao CPF dentro do objeto data
-  console.log(`Processando CPF: ${cpf}`);  // Log para verificar se o CPF está sendo extraído corretamente
+  const cpf = data?.cpf;
+  console.log(`Processando CPF: ${cpf}`);
 
   if (action === "ping") {
-    return { version, data: { status: "active", error: false, errorMessage: "não houveram erros" }}; // Adicionando o campo errorMessage com valor padrão
+    return { version, data: { status: "active", error: false, errorMessage: "não houveram erros" }};
   }
 
   if (data?.error) {
@@ -152,10 +159,11 @@ export const getNextScreen = async (decryptedBody) => {
     const cachedData = getCachedData(screen, data);
     if (cachedData) {
       console.log('Using cached data for screen:', screen);
-      return { ...cachedData, cpf, error: false, errorMessage: "não houveram erros" };  // Inclui o CPF, error, e errorMessage no cache também
+      return { ...cachedData, cpf, error: false, errorMessage: "não houveram erros" };
     }
 
-    if (action === "INIT") {
+    // Verificação para chamar o endpoint quando action é "INIT" ou o screen está vazio
+    if (action === "INIT" || !screen) {
       const endpointData = await sendDataToEndpoint({ screen: "", data: {}, flow_token, version });
       const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, cpf, error: false, errorMessage: "não houveram erros" }};
       setCachedData(screen, response);
@@ -163,9 +171,9 @@ export const getNextScreen = async (decryptedBody) => {
     }
 
     validateInput(data, screen);
-    
+
     const endpointData = await sendDataToEndpoint({ screen, data, flow_token, version });
-    const mergedDataWithCPF = { ...endpointData, cpf };  // Certifique-se de incluir o CPF
+    const mergedDataWithCPF = { ...endpointData, cpf };
 
     let response;
     switch (screen) {
