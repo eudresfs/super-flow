@@ -106,6 +106,8 @@ const handleErrorResponse = (screen, message, error) => ({
 
 // Função Principal de Controle de Fluxo
 export const getNextScreen = async (decryptedBody) => {
+  console.log("Dados recebidos (bancos_aceitos e cpf):", decryptedBody.data);
+  
   const { screen, data, version, action, flow_token } = decryptedBody;
   const cpf = data?.cpf;
   
