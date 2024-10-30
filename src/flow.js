@@ -106,9 +106,19 @@ const handleErrorResponse = (screen, message, error) => ({
 
 // Função Principal de Controle de Fluxo
 export const getNextScreen = async (decryptedBody) => {
-  console.log("Dados recebidos (bancos_aceitos e cpf):", decryptedBody.data);
   
-  const { screen, data, version, action, flow_token } = decryptedBody;
+  let { screen, data, version, action, flow_token } = decryptedBody;
+
+  // Verificar e converter bancos_aceitos se for uma string
+  if (typeof data?.bancos_aceitos === 'string') {
+    try {
+      data.bancos_aceitos = JSON.parse(data.bancos_aceitos);
+      console.log("bancos_aceitos convertido com sucesso:", data.bancos_aceitos);
+    } catch (error) {
+      console.error("Erro ao converter bancos_aceitos:", error);
+      return { screen, data: { errorMessage: "Erro ao processar bancos_aceitos.", error: true }};
+    }
+  }
   const cpf = data?.cpf;
   
   if (action === "ping") {
