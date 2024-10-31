@@ -167,33 +167,40 @@ export const getNextScreen = async (decryptedBody) => {
         break;
         
         case "authorization":
-          const { contexto, situacao } = data;
+  console.log("Conteúdo de data:", data);
 
-          if (contexto === "resolver-situacao") {
-            if (situacao === "escolher-simulacao") {
-              response = { 
-                screen: SCREEN_RESPONSES.opportunities.screen, 
-                data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
-              };
-            } else if (situacao === "autorizar-bancos") {
-              response = { 
-                screen: SCREEN_RESPONSES.instructions.screen, 
-                data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
-              };
-            }
-          } else if (contexto === "sem-oportunidade") {
-            response = { 
-              screen: SCREEN_RESPONSES.no_opportunity.screen, 
-              data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
-            };
-          } else {
-            // Caso de fallback, se necessário
-            response = { 
-              screen: SCREEN_RESPONSES.opportunities.screen, 
-              data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
-            };
-          }
-          break;
+  // Supondo que data seja um array com um objeto contendo contexto e situacao no primeiro índice
+  const contexto = data[0]?.contexto;
+  const situacao = data[0]?.situacao;
+  
+  console.log("Verificando contexto e situacao:", contexto, situacao);
+
+  if (contexto === "resolver-situacao") {
+    if (situacao === "escolher-simulacao") {
+      response = { 
+        screen: SCREEN_RESPONSES.opportunities.screen, 
+        data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
+      };
+    } else if (situacao === "autorizar-banco") {
+      response = { 
+        screen: SCREEN_RESPONSES.instructions.screen, 
+        data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
+      };
+    }
+  } else if (contexto === "sem-oportunidade") {
+    response = { 
+      screen: SCREEN_RESPONSES.no_opportunity.screen, 
+      data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
+    };
+  } else {
+    // Caso de fallback, se necessário
+    response = { 
+      screen: SCREEN_RESPONSES.authorization.screen, 
+      data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "⚠️ Simulação em andamento, aguarde 2 minutos e então toque novamente no botão abaixo" } 
+    };
+  }
+  break;
+
 
       case "opportunities":
         response = { screen: SCREEN_RESPONSES.account.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
