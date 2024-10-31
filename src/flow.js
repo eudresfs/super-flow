@@ -19,7 +19,12 @@ const dynamicMaxDate = calculateDateYearsAgo(18);
 const dynamicMinDate = calculateDateYearsAgo(75);
 
 // Configurações e Dados de Respostas das Telas
-const SCREEN_RESPONSES = 
+const SCREEN_RESPONSES = {
+  signup: { screen: "signup", data: { cpf: "", nome: "" }},
+  authorization: { screen: "authorization", data: {} },
+  opportunities: { screen: "opportunities", data: {} },
+  no_opportunity: { screen: "no_opportunity", data: {} },
+  instructions: { screen: "instructions", data: {} },
   account: { screen: "account", data: { cpf: "", bancos_aceitos: [] }},
   infos: { screen: "infos", data: { name: "João da Silva" }},
   address: { screen: "address", data: {} },
@@ -61,7 +66,7 @@ const logError = (message, error, screen = '') => {
 const sendDataToEndpoint = async (data) => {
   for (let attempt = 0; attempt < config.MAX_RETRIES; attempt++) {
     try {
-      const response = await axios.post(config.ENDPOINT_URL, data);
+      const response = await axios.post(config.TEST_ENDPOINT_URL, data);
       return response.data;
     } catch (error) {
       if (attempt === config.MAX_RETRIES - 1) throw error;
@@ -87,6 +92,11 @@ const fetchCEPData = async (cep) => {
 // Validação de Input com Campos Obrigatórios
 const validateInput = (data, screen) => {
   const requiredFields = {
+    signup: ['cpf', 'nome'],
+    authorization: [],
+    opportunities: [],
+    no_opportunity: [],
+    instructions: [],
     account: ['codigoBanco', 'tipoConta', 'agencia', 'conta'],
     infos: ['nome', 'dataNascimento', 'nomeMae', 'cep'],
   };
@@ -141,7 +151,7 @@ export const getNextScreen = async (decryptedBody) => {
         version
       });
       
-      const response = { screen: endpointData.screen || SCREEN_RESPONSES.account.screen, data: { ...endpointData.data, cpf, error: false, errorMessage: "não houveram erros" }};
+      const response = { screen: endpointData.screen || SCREEN_RESPONSES.signup.screen, data: { ...endpointData.data, cpf, error: false, errorMessage: "não houveram erros" }};
       setCachedData(screen, response);
       return response;
     }
@@ -152,6 +162,15 @@ export const getNextScreen = async (decryptedBody) => {
 
     let response;
     switch (screen) {
+      case "signup":
+        response = { screen: SCREEN_RESPONSES.authorization.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
+        break;
+      case "authorization":
+        response = { screen: SCREEN_RESPONSES.opportunities.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
+        break;
+      case "opportunities":
+        response = { screen: SCREEN_RESPONSES.account.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
+        break;
       case "account":
         response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, maxDate: dynamicMaxDate, minDate: dynamicMinDate, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
@@ -166,6 +185,10 @@ export const getNextScreen = async (decryptedBody) => {
         break;
       case "complete":
         response = { screen: SCREEN_RESPONSES.SUCCESS.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
+        break;
+      case "no_opportunity":
+      case "instructions":
+        response = { screen: SCREEN_RESPONSES.instructions.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
       default:
         throw new Error(`Tela não reconhecida: ${screen}`);
