@@ -6,7 +6,8 @@ const config = {
   RETRY_DELAY: 1000, // 1 segundo
   CACHE_TIMEOUT: 5 * 60 * 1000, // 5 minutos
   ENDPOINT_URL: 'https://n8n-01-webhook.kemosoft.com.br/webhook/flows',
-  TEST_ENDPOINT_URL: 'https://n8n-01.kemosoft.com.br/webhook-test/flows'
+  TEST_ENDPOINT_URL: 'https://n8n-01.kemosoft.com.br/webhook-test/flows',
+  NEXT_STEP_ENDPOINT_URL: (cpf) => `https://ms-crm-az.kemosoft.com.br/v1/proxima-etapa/fgts/${cpf}/complete`
 };
 
 // Utilitários de Data
@@ -66,7 +67,7 @@ const logError = (message, error, screen = '') => {
 const sendDataToEndpoint = async (data) => {
   for (let attempt = 0; attempt < config.MAX_RETRIES; attempt++) {
     try {
-      const response = await axios.post(config.TEST_ENDPOINT_URL, data);
+      const response = await axios.post(config.ENDPOINT_URL, data);
       return response.data;
     } catch (error) {
       if (attempt === config.MAX_RETRIES - 1) throw error;
@@ -86,6 +87,17 @@ const fetchCEPData = async (cep) => {
   } catch (error) {
     logError('Erro ao buscar CEP', error);
     return { error: 'CEP não localizado' };
+  }
+};
+
+// Função para buscar a próxima etapa
+const fetchNextStep = async (cpf) => {
+  try {
+    const response = await axios.get(config.NEXT_STEP_ENDPOINT_URL(cpf));
+    return response.data;
+  } catch (error) {
+    logError('Erro ao buscar próxima etapa', error);
+    throw new Error("Erro ao obter próxima etapa");
   }
 };
 
@@ -151,49 +163,16 @@ export const getNextScreen = async (decryptedBody) => {
         version
       });
       
-      const response = { screen: endpointData.screen || SCREEN_RESPONSES.signup.screen, data: { ...endpointData.data, cpf, error: false, errorMessage: "não houveram erros" }};
+      const response = await fetchNextStep(cpf);
       setCachedData(screen, response);
       return response;
     }
 
     validateInput(data, screen);
-    const endpointData = await sendDataToEndpoint({ screen, data, flow_token, version });
-    const mergedDataWithCPF = { ...endpointData, cpf };
+    await sendDataToEndpoint({ screen, data, flow_token, version });
 
-    let response;
-    switch (screen) {
-      case "signup":
-        response = { screen: SCREEN_RESPONSES.authorization.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      case "authorization":
-        response = { screen: SCREEN_RESPONSES.opportunities.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      case "opportunities":
-        response = { screen: SCREEN_RESPONSES.account.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      case "account":
-        response = { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, maxDate: dynamicMaxDate, minDate: dynamicMinDate, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      case "infos":
-        const cepData = await fetchCEPData(data.cep);
-        response = cepData.error
-          ? { screen: SCREEN_RESPONSES.infos.screen, data: { ...mergedDataWithCPF, errorMessage: cepData.error, cpf, error: true }}
-          : { screen: cepData.isComplete ? SCREEN_RESPONSES.complete.screen : SCREEN_RESPONSES.address.screen, data: { ...mergedDataWithCPF, ...cepData, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      case "address":
-        response = { screen: SCREEN_RESPONSES.complete.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      case "complete":
-        response = { screen: SCREEN_RESPONSES.SUCCESS.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      case "no_opportunity":
-      case "instructions":
-        response = { screen: SCREEN_RESPONSES.instructions.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
-      default:
-        throw new Error(`Tela não reconhecida: ${screen}`);
-    }
-
+    // Retornar a resposta do novo endpoint "próxima etapa" para cada transição
+    const response = await fetchNextStep(cpf);
     setCachedData(screen, response);
     return response;
   } catch (error) {
