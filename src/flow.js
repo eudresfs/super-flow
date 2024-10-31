@@ -19,10 +19,7 @@ const dynamicMaxDate = calculateDateYearsAgo(18);
 const dynamicMinDate = calculateDateYearsAgo(75);
 
 // Configurações e Dados de Respostas das Telas
-const SCREEN_RESPONSES = {
-  signup: { screen: "authorization", data: {} },
-  authorization: { screen: "opportunities", data: {} },
-  opportunities: { screen: "account", data: {} },
+const SCREEN_RESPONSES = 
   account: { screen: "account", data: { cpf: "", bancos_aceitos: [] }},
   infos: { screen: "infos", data: { name: "João da Silva" }},
   address: { screen: "address", data: {} },
