@@ -165,9 +165,36 @@ export const getNextScreen = async (decryptedBody) => {
       case "signup":
         response = { screen: SCREEN_RESPONSES.authorization.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
-      case "authorization":
-        response = { screen: SCREEN_RESPONSES.opportunities.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
-        break;
+        
+        case "authorization":
+          const { contexto, situacao } = data;
+
+          if (contexto === "resolver-situacao") {
+            if (situacao === "escolher-simulacao") {
+              response = { 
+                screen: SCREEN_RESPONSES.opportunities.screen, 
+                data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
+              };
+            } else if (situacao === "autorizar-bancos") {
+              response = { 
+                screen: SCREEN_RESPONSES.instructions.screen, 
+                data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
+              };
+            }
+          } else if (contexto === "sem-oportunidade") {
+            response = { 
+              screen: SCREEN_RESPONSES.no_opportunity.screen, 
+              data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
+            };
+          } else {
+            // Caso de fallback, se necessário
+            response = { 
+              screen: SCREEN_RESPONSES.opportunities.screen, 
+              data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
+            };
+          }
+          break;
+
       case "opportunities":
         response = { screen: SCREEN_RESPONSES.account.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
