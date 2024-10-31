@@ -166,40 +166,38 @@ export const getNextScreen = async (decryptedBody) => {
         response = { screen: SCREEN_RESPONSES.authorization.screen, data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" }};
         break;
         
-        case "authorization":
-  console.log("Conteúdo de data:", data);
+      case "authorization":
+        // Chamando o endpoint e integrando contexto e situacao da resposta
+        const endpointData = await sendDataToEndpoint({ screen, data, flow_token, version });
+        const { contexto, situacao } = endpointData;
 
-  // Supondo que data seja um array com um objeto contendo contexto e situacao no primeiro índice
-  const contexto = data[0]?.contexto;
-  const situacao = data[0]?.situacao;
-  
-  console.log("Verificando contexto e situacao:", contexto, situacao);
+        console.log("Verificando contexto e situacao:", contexto, situacao);
 
-  if (contexto === "resolver-situacao") {
-    if (situacao === "escolher-simulacao") {
-      response = { 
-        screen: SCREEN_RESPONSES.opportunities.screen, 
-        data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
-      };
-    } else if (situacao === "autorizar-banco") {
-      response = { 
-        screen: SCREEN_RESPONSES.instructions.screen, 
-        data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
-      };
-    }
-  } else if (contexto === "sem-oportunidade") {
-    response = { 
-      screen: SCREEN_RESPONSES.no_opportunity.screen, 
-      data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "não houveram erros" } 
-    };
-  } else {
-    // Caso de fallback, se necessário
-    response = { 
-      screen: SCREEN_RESPONSES.authorization.screen, 
-      data: { ...mergedDataWithCPF, cpf, error: false, errorMessage: "⚠️ Simulação em andamento, aguarde 2 minutos e então toque novamente no botão abaixo" } 
-    };
-  }
-  break;
+        if (contexto === "resolver-situacao") {
+          if (situacao === "escolher-simulacao") {
+            response = { 
+              screen: SCREEN_RESPONSES.opportunities.screen, 
+              data: { ...endpointData, cpf, error: false, errorMessage: "não houveram erros" } 
+            };
+          } else if (situacao === "autorizar-banco") {
+            response = { 
+              screen: SCREEN_RESPONSES.instructions.screen, 
+              data: { ...endpointData, cpf, error: false, errorMessage: "não houveram erros" } 
+            };
+          }
+        } else if (contexto === "sem-oportunidade") {
+          response = { 
+            screen: SCREEN_RESPONSES.no_opportunity.screen, 
+            data: { ...endpointData, cpf, error: false, errorMessage: "não houveram erros" } 
+          };
+        } else {
+          // Fallback
+          response = { 
+            screen: SCREEN_RESPONSES.authorization.screen, 
+            data: { ...endpointData, cpf, error: false, errorMessage: "⚠️ Simulação em andamento, aguarde 2 minutos e então toque novamente no botão abaixo" } 
+          };
+        }
+        break;
 
 
       case "opportunities":
