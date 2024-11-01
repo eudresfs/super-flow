@@ -66,7 +66,7 @@ const logError = (message, error, screen = '') => {
 const sendDataToEndpoint = async (data) => {
   for (let attempt = 0; attempt < config.MAX_RETRIES; attempt++) {
     try {
-      const response = await axios.post(config.ENDPOINT_URL, data);
+      const response = await axios.post(config.TEST_ENDPOINT_URL, data);
       return response.data;
     } catch (error) {
       if (attempt === config.MAX_RETRIES - 1) throw error;
