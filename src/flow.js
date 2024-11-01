@@ -66,7 +66,7 @@ const logError = (message, error, screen = '') => {
 const sendDataToEndpoint = async (data) => {
   for (let attempt = 0; attempt < config.MAX_RETRIES; attempt++) {
     try {
-      const response = await axios.post(config.TEST_ENDPOINT_URL, data);
+      const response = await axios.post(config.ENDPOINT_URL, data);
       return response.data;
     } catch (error) {
       if (attempt === config.MAX_RETRIES - 1) throw error;
@@ -98,7 +98,7 @@ const validateInput = (data, screen) => {
     no_opportunity: [],
     instructions: [],
     account: ['codigoBanco', 'tipoConta', 'agencia', 'conta'],
-    infos: ['nome', 'dataNascimento', 'nomeMae', 'cep'],
+    infos: ['dataNascimento', 'nomeMae', 'cep'],
   };
   const missingFields = requiredFields[screen]?.filter(field => !data[field]);
   if (missingFields?.length) throw new Error(`Campos obrigatórios ausentes: ${missingFields.join(', ')}`);
