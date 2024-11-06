@@ -27,9 +27,19 @@ export const getNextScreen = async (decryptedBody) => {
   if (action === "INIT") {
     // Resposta para inicialização
     return {
-      screen: SCREEN_RESPONSE.screen,
+      screen: "signup",
       data: { flow_token, version, message: "Inicialização bem-sucedida", error: false }
     };
+  }
+  
+ // handle health check request
+  if (action === "ping") {
+      return {
+          version,
+          data: {
+              status: "active",
+          },
+      };
   }
 
   if (action === "data_exchange" && data.cep) {
