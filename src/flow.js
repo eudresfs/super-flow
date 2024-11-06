@@ -22,7 +22,7 @@ const fetchCEPData = async (cep) => {
 const getCurrentYearMonth = () => {
   const date = new Date();
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // +1 porque getMonth() retorna 0-11
+  const month = String(date.getMonth() - 6).padStart(2, '0'); // +1 porque getMonth() retorna 0-11
   return `${year}${month}`;
 };
 
