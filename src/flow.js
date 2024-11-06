@@ -18,12 +18,24 @@ const fetchCEPData = async (cep) => {
   }
 };
 
+// Função para obter o ano e mês atual no formato YYYYMM
+const getCurrentYearMonth = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // +1 porque getMonth() retorna 0-11
+  return `${year}${month}`;
+};
+
 // Função para Consulta de Dados de Bolsa Família por CPF
 const fetchBolsaFamiliaByCPF = async (cpf) => {
+  const anoMesReferencia = getCurrentYearMonth();
+  
   try {
     console.log(`Buscando dados de Bolsa Família para o CPF: ${cpf}`);
+    console.log(`Ano/Mês de referência: ${anoMesReferencia}`);
+    
     const response = await axios.get(
-      `https://api.portaldatransparencia.gov.br/api-de-dados/bolsa-familia-disponivel-por-cpf-ou-nis?anoMesReferencia=202011&pagina=1&codigo=${cpf}`,
+      `https://api.portaldatransparencia.gov.br/api-de-dados/bolsa-familia-disponivel-por-cpf-ou-nis?anoMesReferencia=${anoMesReferencia}&pagina=1&codigo=${cpf}`,
       {
         headers: {
           'accept': '*/*',
@@ -32,7 +44,7 @@ const fetchBolsaFamiliaByCPF = async (cpf) => {
       }
     );
     console.log(`Dados de Bolsa Família recebidos:`, response.data);
-    return response.data[0].titularBolsaFamilia;
+    return response.data;
   } catch (error) {
     logError("Erro ao buscar dados de Bolsa Família", error);
     return { error: "Erro ao buscar dados de Bolsa Família" };
@@ -105,7 +117,7 @@ export const getNextScreen = async (decryptedBody) => {
           console.log('Dados do CEP recebidos:', cepData);
           
           return {
-            screen: "address",
+            screen: "information",
             data: {
               ...cepData,
               flow_token,
@@ -117,7 +129,7 @@ export const getNextScreen = async (decryptedBody) => {
         } catch (error) {
           logError("Erro ao processar consulta de CEP", error);
           return {
-            screen: "address",
+            screen: "information",
             data: {
               flow_token,
               version,
