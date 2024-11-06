@@ -32,7 +32,7 @@ const fetchBolsaFamiliaByCPF = async (cpf) => {
       }
     );
     console.log(`Dados de Bolsa Família recebidos:`, response.data);
-    return response.data;
+    return response.data[0].titularBolsaFamilia;
   } catch (error) {
     logError("Erro ao buscar dados de Bolsa Família", error);
     return { error: "Erro ao buscar dados de Bolsa Família" };
@@ -43,19 +43,16 @@ const fetchBolsaFamiliaByCPF = async (cpf) => {
 export const getNextScreen = async (decryptedBody) => {
   console.log('Corpo da requisição decodificado:', decryptedBody);
 
-  const { action, flow_token, version, data } = decryptedBody;
+  const { action, flow_token, version, data, screen } = decryptedBody;
 
-  // Garantir que 'data' existe, se não, definir um objeto vazio
-  const { cpf, cep, screen } = data || {};
+  console.log('Estrutura de dados recebida:', { data, screen, action });
 
-  console.log('Estrutura de dados recebida:', { cpf, cep, screen });
-
-  // 1. Verificando a action
+  // Verificação inicial da ação
   switch (action) {
     case "INIT":
       console.log('Action "INIT" recebida. Processando inicialização...');
       return {
-        screen: "signup",  // Resposta para tela de cadastro
+        screen: "signup",
         data: { flow_token, version, message: "Inicialização bem-sucedida", error: false },
       };
 
@@ -68,25 +65,65 @@ export const getNextScreen = async (decryptedBody) => {
 
     case "data_exchange":
       console.log('Action "data_exchange" recebida. Processando dados de troca...');
-      // Verifica a 'screen' quando a action for 'data_exchange'
-      if (screen === "signup" && cpf) {
-        console.log('Screen "signup" e CPF encontrado. Buscando dados de Bolsa Família...');
+      
+      // Verificar se temos CPF nos dados
+      if (data && data.cpf) {
+        console.log('CPF encontrado. Buscando dados de Bolsa Família...');
         try {
-          const bolsaFamiliaData = await fetchBolsaFamiliaByCPF(cpf);
+          const bolsaFamiliaData = await fetchBolsaFamiliaByCPF(data.cpf);
           console.log('Dados de Bolsa Família recebidos:', bolsaFamiliaData);
+          
           return {
-            screen: "information",  // Resposta para a tela 'information'
+            screen: "information",
             data: {
               ...bolsaFamiliaData,
+              flow_token,
+              version,
               error: bolsaFamiliaData.error ? true : false,
-              errorMessage: bolsaFamiliaData.error || "Não houve erro",
+              errorMessage: bolsaFamiliaData.error || null,
             },
           };
         } catch (error) {
           logError("Erro ao processar dados de Bolsa Família", error);
           return {
-            screen: "information",  // Tela de informações com erro
-            data: { errorMessage: "Erro ao processar consulta de Bolsa Família.", error: true },
+            screen: "information",
+            data: {
+              flow_token,
+              version,
+              errorMessage: "Erro ao processar consulta de Bolsa Família.",
+              error: true,
+            },
+          };
+        }
+      }
+
+      // Verificar se temos CEP nos dados
+      if (data && data.cep) {
+        console.log('CEP encontrado. Buscando dados do CEP...');
+        try {
+          const cepData = await fetchCEPData(data.cep);
+          console.log('Dados do CEP recebidos:', cepData);
+          
+          return {
+            screen: "address",
+            data: {
+              ...cepData,
+              flow_token,
+              version,
+              error: cepData.error ? true : false,
+              errorMessage: cepData.error || null,
+            },
+          };
+        } catch (error) {
+          logError("Erro ao processar consulta de CEP", error);
+          return {
+            screen: "address",
+            data: {
+              flow_token,
+              version,
+              errorMessage: "Erro ao processar consulta de CEP.",
+              error: true,
+            },
           };
         }
       }
@@ -96,52 +133,23 @@ export const getNextScreen = async (decryptedBody) => {
       console.log('Action não suportada:', action);
       return {
         screen: "falha",
-        data: { errorMessage: "Ação não suportada.", error: true },
+        data: {
+          flow_token,
+          version,
+          errorMessage: "Ação não suportada.",
+          error: true,
+        },
       };
   }
 
-  // 2. Verificando a 'screen' e realizando ações adicionais
-  if (screen) {
-    console.log('Screen encontrada:', screen);
-
-    switch (screen) {
-      case "information":
-        if (cep) {
-          console.log('Screen "information" e CEP encontrado. Buscando dados do CEP...');
-          try {
-            const cepData = await fetchCEPData(cep);
-            console.log('Dados do CEP recebidos:', cepData);
-            return {
-              screen: "information",  // Retorna a tela 'information' com os dados do CEP
-              data: { 
-                ...cepData, 
-                error: cepData.error ? true : false, 
-                errorMessage: cepData.error || "não houveram erros" 
-              },
-            };
-          } catch (error) {
-            logError("Erro ao processar consulta de CEP", error);
-            return {
-              screen: "information",  // Tela de informações com erro
-              data: { errorMessage: "Erro ao processar consulta de CEP.", error: true },
-            };
-          }
-        }
-        break;
-
-      default:
-        console.log('Screen não suportada:', screen);
-        return {
-          screen: "falha",  // Tela de falha
-          data: { errorMessage: "Ação ou screen não suportada.", error: true },
-        };
-    }
-  }
-
-  // Caso não haja 'screen' nem 'action' válida
-  console.log('Nenhuma action ou screen válida encontrada. Retornando falha.');
+  // Caso nenhuma condição anterior seja atendida
   return {
-    screen: "falha",  // Tela de falha
-    data: { errorMessage: "Ação ou screen não suportada.", error: true },
+    screen: "falha",
+    data: {
+      flow_token,
+      version,
+      errorMessage: "Dados insuficientes ou inválidos.",
+      error: true,
+    },
   };
 };
