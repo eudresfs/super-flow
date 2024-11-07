@@ -14,7 +14,7 @@ const fetchCEPData = async (cep) => {
     return response.data;
   } catch (error) {
     logError("Erro ao buscar CEP", error);
-    return { error: "CEP não localizado" };
+    return { error: "⚠️ CEP não localizado" };
   }
 };
 
