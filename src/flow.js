@@ -115,15 +115,28 @@ export const getNextScreen = async (decryptedBody) => {
         try {
           const cepData = await fetchCEPData(data.cep);
           console.log('Dados do CEP recebidos:', cepData);
-          
+
+          // Verifica se o cepData contém um erro
+          if (cepData.error) {
+            return {
+              screen: "information",
+              data: {
+                flow_token,
+                version,
+                erro_cep: cepData.error,
+                error: true,
+              },
+            };
+          }
+
           return {
-            screen: "information",
+            screen: "address",
             data: {
               ...cepData,
               flow_token,
               version,
-              error: cepData.error ? true : false,
-              errorMessage: cepData.error || null,
+              error: false,
+              errorMessage: null,
             },
           };
         } catch (error) {
@@ -133,7 +146,7 @@ export const getNextScreen = async (decryptedBody) => {
             data: {
               flow_token,
               version,
-              errorMessage: "Erro ao processar consulta de CEP.",
+              erro_cep: "Erro ao processar consulta de CEP.",
               error: true,
             },
           };
