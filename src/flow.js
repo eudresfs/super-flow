@@ -26,16 +26,17 @@ const getCurrentYearMonth = () => {
   return `${year}${month}`;
 };
 
-// Função para Consulta de Dados de Bolsa Família por CPF
-const fetchBolsaFamiliaByCPF = async (cpf) => {
+// Função para Consulta de Dados de Bolsa Família por CPF ou NIS
+const fetchBolsaFamilia = async (codigo) => {
   const anoMesReferencia = getCurrentYearMonth();
+  const codigoLimpo = codigo.replace(/[^\d]/g, '');
   
   try {
-    console.log(`Buscando dados de Bolsa Família para o CPF: ${cpf}`);
+    console.log(`Buscando dados de Bolsa Família para: ${codigoLimpo}`);
     console.log(`Ano/Mês de referência: ${anoMesReferencia}`);
     
     const response = await axios.get(
-      `https://api.portaldatransparencia.gov.br/api-de-dados/bolsa-familia-disponivel-por-cpf-ou-nis?anoMesReferencia=${anoMesReferencia}&pagina=1&codigo=${cpf}`,
+      `https://api.portaldatransparencia.gov.br/api-de-dados/bolsa-familia-disponivel-por-cpf-ou-nis?anoMesReferencia=${anoMesReferencia}&pagina=1&codigo=${codigoLimpo}`,
       {
         headers: {
           'accept': '*/*',
@@ -43,26 +44,23 @@ const fetchBolsaFamiliaByCPF = async (cpf) => {
         },
       }
     );
-    console.log(`Dados de Bolsa Família recebidos:`, response.data);
+    
     return response.data;
   } catch (error) {
     logError("Erro ao buscar dados de Bolsa Família", error);
-    return { error: "Erro ao buscar dados de Bolsa Família" };
+    return [];
   }
 };
 
 // Função Principal para Tratamento de Ações e Retorno de Dados
 export const getNextScreen = async (decryptedBody) => {
   console.log('Corpo da requisição decodificado:', decryptedBody);
-
   const { action, flow_token, version, data, screen } = decryptedBody;
-
   console.log('Estrutura de dados recebida:', { data, screen, action });
 
-  // Verificação inicial da ação
+  // Switch principal para actions específicas
   switch (action) {
     case "INIT":
-      console.log('Action "INIT" recebida. Processando inicialização...');
       return {
         screen: "signup",
         data: { flow_token, version, message: "Inicialização bem-sucedida", error: false },
@@ -75,106 +73,78 @@ export const getNextScreen = async (decryptedBody) => {
         data: { status: "active" },
       };
 
-    case "data_exchange":
-      console.log('Action "data_exchange" recebida. Processando dados de troca...');
-      
-      // Verificar se temos CPF nos dados
-      if (data && data.cpf) {
-        console.log('CPF encontrado. Buscando dados de Bolsa Família...');
-        try {
-          const bolsaFamiliaData = await fetchBolsaFamiliaByCPF(data.cpf);
-          console.log('Dados de Bolsa Família recebidos:', bolsaFamiliaData);
-          
-          return {
-            screen: "information",
-            data: {
-              ...bolsaFamiliaData,
-              flow_token,
-              version,
-              error: bolsaFamiliaData.error ? true : false,
-              errorMessage: bolsaFamiliaData.error || null,
-            },
-          };
-        } catch (error) {
-          logError("Erro ao processar dados de Bolsa Família", error);
-          return {
-            screen: "information",
-            data: {
-              flow_token,
-              version,
-              errorMessage: "Erro ao processar consulta de Bolsa Família.",
-              error: true,
-            },
-          };
-        }
-      }
-
-      // Verificar se temos CEP nos dados
-      if (data && data.cep) {
-        console.log('CEP encontrado. Buscando dados do CEP...');
-        try {
-          const cepData = await fetchCEPData(data.cep);
-          console.log('Dados do CEP recebidos:', cepData);
-
-          // Verifica se o cepData contém um erro
-          if (cepData.error) {
+    default:
+      // Switch secundário baseado na screen atual
+      switch (screen) {
+        case "signup":
+          if (data?.cpf) {
+            console.log('CPF encontrado. Buscando dados de Bolsa Família...');
+            const bolsaFamiliaData = await fetchBolsaFamilia(data.cpf);
+            
             return {
               screen: "information",
               data: {
+                ...bolsaFamiliaData,
                 flow_token,
                 version,
-                erro_cep: cepData.error,
-                error: true,
+                error: bolsaFamiliaData.length === 0,
+                errorMessage: bolsaFamiliaData.length === 0 ? "CPF não encontrado" : null,
               },
             };
           }
+          break;
 
+        case "information":
+          if (data?.cep) {
+            console.log('CEP encontrado. Buscando dados do CEP...');
+            const cepData = await fetchCEPData(data.cep);
+            
+            if (cepData.error) {
+              return {
+                screen: "information",
+                data: {
+                  flow_token,
+                  version,
+                  erro_cep: "CEP não localizado",
+                  error: true,
+                },
+              };
+            }
+
+            return {
+              screen: "address",
+              data: {
+                ...cepData,
+                flow_token,
+                version,
+                error: false,
+                errorMessage: null,
+              },
+            };
+          }
+          break;
+
+        default:
           return {
-            screen: "address",
+            screen: "falha",
             data: {
-              ...cepData,
               flow_token,
               version,
-              error: false,
-              errorMessage: null,
-            },
-          };
-        } catch (error) {
-          logError("Erro ao processar consulta de CEP", error);
-          return {
-            screen: "information",
-            data: {
-              flow_token,
-              version,
-              erro_cep: "Erro ao processar consulta de CEP.",
+              errorMessage: "Tela não identificada.",
               error: true,
             },
           };
-        }
       }
-      break;
 
-    default:
-      console.log('Action não suportada:', action);
+      // Se nenhuma condição nos switches for atendida
       return {
         screen: "falha",
         data: {
           flow_token,
           version,
-          errorMessage: "Ação não suportada.",
+          errorMessage: "Dados insuficientes ou inválidos.",
           error: true,
         },
       };
   }
-
-  // Caso nenhuma condição anterior seja atendida
-  return {
-    screen: "falha",
-    data: {
-      flow_token,
-      version,
-      errorMessage: "Dados insuficientes ou inválidos.",
-      error: true,
-    },
-  };
 };
