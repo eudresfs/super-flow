@@ -93,6 +93,24 @@ export const getNextScreen = async (decryptedBody) => {
             };
           }
           break;
+          
+        case "account":
+          if (data?.cpf) {
+            console.log('CPF encontrado. Buscando dados de Bolsa Família...');
+            const bolsaFamiliaData = await fetchBolsaFamilia(data.nis);
+            
+            return {
+              screen: "account",
+              data: {
+                ...bolsaFamiliaData,
+                flow_token,
+                version,
+                error: bolsaFamiliaData.length === 0,
+                errorMessage: bolsaFamiliaData.length === 0 ? "CPF não encontrado" : null,
+              },
+            };
+          }
+          break;
 
         case "information":
           if (data?.cep) {
