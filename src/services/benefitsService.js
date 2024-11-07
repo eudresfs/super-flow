@@ -39,57 +39,71 @@ export class BenefitsService {
   }
 
   async consultarCPF(cpf) {
-    // Anos fixos para CPF (2019 a 2023) com mês 06
-    const anos = ['201906', '202006', '202106', '202206', '202306'];
-    
-    for (const anoRef of anos) {
-      Logger.info(`Consultando CPF ${cpf} para o período ${anoRef}`);
+    try {
+      const anos = ['201906', '202006', '202106', '202206', '202306'];
       
-      const { data, error } = await this.apiClient.get(
-        `/bolsa-familia-disponivel-por-cpf-ou-nis?anoMesCompetencia=${anoRef}&pagina=1&codigo=${cpf}`
-      );
-      
-      if (!error && data?.length > 0) {
-        Logger.info(`Dados encontrados para CPF no período ${anoRef}`);
-        return data[0];
+      for (const anoRef of anos) {
+        Logger.info(`Consultando CPF ${cpf} para o período ${anoRef}`);
+        
+        const { data, error } = await this.apiClient.get(
+          `/bolsa-familia-disponivel-por-cpf-ou-nis?anoMesCompetencia=${anoRef}&pagina=1&codigo=${cpf}`
+        );
+        
+        if (!error && Array.isArray(data) && data.length > 0) {
+          Logger.info(`Dados encontrados para CPF no período ${anoRef}`);
+          return data;
+        }
       }
+      
+      Logger.info('Nenhum dado encontrado para o CPF após todas as tentativas');
+      return [];
+    } catch (error) {
+      Logger.error('Erro ao consultar CPF', error);
+      return [];
     }
-    
-    Logger.info('Nenhum dado encontrado para o CPF após todas as tentativas');
-    return [];
   }
 
   async consultarNIS(nis) {
-    // Gera array com os últimos 6 meses
-    const dates = DateHelper.getLastSixMonths();
-    
-    for (const anoMesRef of dates) {
-      Logger.info(`Consultando NIS ${nis} para o período ${anoMesRef}`);
+    try {
+      const dates = DateHelper.getLastSixMonths();
       
-      const { data, error } = await this.apiClient.get(
-        `/novo-bolsa-familia-sacado-por-nis?anoMesReferencia=${anoMesRef}&pagina=1&nis=${nis}`
-      );
-      
-      if (!error && data?.length > 0) {
-        Logger.info(`Dados encontrados para NIS no período ${anoMesRef}`);
-        return data;
+      for (const anoMesRef of dates) {
+        Logger.info(`Consultando NIS ${nis} para o período ${anoMesRef}`);
+        
+        const { data, error } = await this.apiClient.get(
+          `/novo-bolsa-familia-sacado-por-nis?anoMesReferencia=${anoMesRef}&pagina=1&nis=${nis}`
+        );
+        
+        if (!error && Array.isArray(data) && data.length > 0) {
+          Logger.info(`Dados encontrados para NIS no período ${anoMesRef}`);
+          return data;
+        }
       }
+      
+      Logger.info('Nenhum dado encontrado para o NIS após todas as tentativas');
+      return [];
+    } catch (error) {
+      Logger.error('Erro ao consultar NIS', error);
+      return [];
     }
-    
-    Logger.info('Nenhum dado encontrado para o NIS após todas as tentativas');
-    return [];
   }
 
   async fetchBolsaFamilia(codigo) {
-    const codigoLimpo = codigo.replace(/[^\d]/g, '');
-    const isNISCode = this.isNIS(codigoLimpo);
-    
-    Logger.info(`Verificando código ${codigoLimpo}:`, 
-      isNISCode ? 'Identificado como NIS válido' : 'Identificado como CPF');
+    try {
+      const codigoLimpo = codigo.replace(/[^\d]/g, '');
+      const isNISCode = this.isNIS(codigoLimpo);
+      
+      Logger.info(`Verificando código ${codigoLimpo}:`, 
+        isNISCode ? 'Identificado como NIS válido' : 'Identificado como CPF');
 
-    // Direciona para o endpoint correto baseado no tipo de código
-    return isNISCode 
-      ? await this.consultarNIS(codigoLimpo)
-      : await this.consultarCPF(codigoLimpo);
+      const result = isNISCode 
+        ? await this.consultarNIS(codigoLimpo)
+        : await this.consultarCPF(codigoLimpo);
+
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      Logger.error('Erro ao buscar dados de Bolsa Família', error);
+      return [];
+    }
   }
 }

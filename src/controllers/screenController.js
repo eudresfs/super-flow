@@ -2,6 +2,7 @@
 
 import { AddressService } from '../services/addressService.js';
 import { BenefitsService } from '../services/benefitsService.js';
+import { Logger } from '../utils/logger.js';
 
 
 export class ScreenController {
@@ -27,7 +28,7 @@ export class ScreenController {
     if (!data?.cpf) return null;
     
     const bolsaFamiliaData = await this.benefitsService.fetchBolsaFamilia(data.cpf);
-    return this.createResponse('information', bolsaFamiliaData, {
+    return this.createResponse('information', bolsaFamiliaData[0].titularBolsaFamilia, {
       flow_token,
       version,
       error: bolsaFamiliaData.length === 0,
@@ -38,13 +39,29 @@ export class ScreenController {
   async handleAccountScreen(data, flow_token, version) {
     if (!data?.nis) return null;
     
-    const bolsaFamiliaData = await this.benefitsService.fetchBolsaFamilia(data.nis);
-    return this.createResponse('account', bolsaFamiliaData, {
-      flow_token,
-      version,
-      error: bolsaFamiliaData.length === 0,
-      errorMessage: bolsaFamiliaData.length === 0 ? "NIS não encontrado" : null
-    });
+    try {
+      const bolsaFamiliaData = await this.benefitsService.fetchBolsaFamilia(data.nis);
+      
+      return this.createResponse('complete', 
+        Array.isArray(bolsaFamiliaData) ? bolsaFamiliaData[0] : [], 
+        {
+          flow_token,
+          version,
+          error: !Array.isArray(bolsaFamiliaData) || bolsaFamiliaData.length === 0,
+          errorMessage: !Array.isArray(bolsaFamiliaData) || bolsaFamiliaData.length === 0 
+            ? "NIS não encontrado" 
+            : null
+        }
+      );
+    } catch (error) {
+      Logger.error('Erro ao processar dados de NIS', error);
+      return this.createResponse('account', [], {
+        flow_token,
+        version,
+        error: true,
+        errorMessage: "Erro ao processar consulta de NIS"
+      });
+    }
   }
 
   async handleInformationScreen(data, flow_token, version) {
