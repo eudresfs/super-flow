@@ -24,16 +24,30 @@ export class ScreenController {
     };
   }
 
-  async handleSignupScreen(data, flow_token, version) {
+ async handleSignupScreen(data, flow_token, version) {
     if (!data?.cpf) return null;
     
-    const bolsaFamiliaData = await this.benefitsService.fetchBolsaFamilia(data.cpf);
-    return this.createResponse('information', bolsaFamiliaData[0].titularBolsaFamilia, {
-      flow_token,
-      version,
-      error: bolsaFamiliaData.length === 0,
-      errorMessage: bolsaFamiliaData.length === 0 ? "CPF não encontrado" : null
-    });
+    try {
+      const bolsaFamiliaData = await this.benefitsService.fetchBolsaFamilia(data.cpf);
+      
+      return this.createResponse('information', 
+        bolsaFamiliaData.length > 0 ? bolsaFamiliaData[0].titularBolsaFamilia : {}, 
+        {
+          flow_token,
+          version,
+          error: bolsaFamiliaData.length === 0,
+          errorMessage: bolsaFamiliaData.length === 0 ? "CPF não encontrado" : null
+        }
+      );
+    } catch (error) {
+      Logger.error('Erro ao processar dados de CPF', error);
+      return this.createResponse('information', {}, {
+        flow_token,
+        version,
+        error: true,
+        errorMessage: "Erro ao processar consulta de CPF"
+      });
+    }
   }
 
   async handleAccountScreen(data, flow_token, version) {
