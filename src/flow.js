@@ -15,10 +15,13 @@ export const getNextScreen = async (decryptedBody) => {
     );
   }
   
+  // Tratamento de ações especiais
   if (action === "ping") {
-    return {
-      version,
-      data: { status: "active" }
+    return { 
+      data: { 
+        status: "active",
+        timestamp: new Date().toISOString()
+      } 
     };
   }
 
