@@ -7,6 +7,16 @@
 
 import crypto from "crypto";
 
+try {
+  const privateKey = crypto.createPrivateKey({ 
+    key: process.env.PRIVATE_KEY,
+    passphrase: process.env.PASSPHRASE
+  });
+  console.log("Chave carregada com sucesso");
+} catch (e) {
+  console.error("Erro ao carregar chave:", e);
+}
+
 export const decryptRequest = (body, privatePem, passphrase) => {
   const { encrypted_aes_key, encrypted_flow_data, initial_vector } = body;
 
