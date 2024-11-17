@@ -6,6 +6,33 @@ import crypto from "crypto";
 const app = express();
 const { APP_SECRET, PRIVATE_KEY, PASSPHRASE = "", PORT = "3000" } = process.env;
 
+// Função para testar a chave privada no início do servidor
+function testPrivateKey() {
+  try {
+    const privateKey = crypto.createPrivateKey({
+      key: PRIVATE_KEY,
+      format: 'pem',
+      type: 'pkcs8',
+      passphrase: PASSPHRASE
+    });
+    
+    // Gerar e exibir a chave pública correspondente
+    const publicKey = crypto.createPublicKey(privateKey);
+    const publicKeyPem = publicKey.export({
+      type: 'spki',
+      format: 'pem'
+    });
+    
+    console.log('✅ Private key loaded successfully');
+    console.log('📢 Public key for client:');
+    console.log(publicKeyPem.toString());
+    return true;
+  } catch (error) {
+    console.error('❌ Error loading private key:', error);
+    return false;
+  }
+}
+
 app.use(
   express.json({
     verify: (req, res, buf, encoding) => {
