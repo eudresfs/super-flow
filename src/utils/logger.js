@@ -1,10 +1,14 @@
-// utils/logger.js
-export class Logger {
-  static error(message, error) {
-    console.error(`${message}:`, error);
-  }
+const winston = require('winston');
 
-  static info(message, data = '') {
-    console.log(message, data || '');
-  }
-}
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.Console()
+    ]
+});
+
+module.exports.Logger = logger;

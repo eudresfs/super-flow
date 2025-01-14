@@ -1,5 +1,5 @@
 // utils/dateHelper.js
-export class DateHelper {
+class DateHelper {
   static getLastSixMonths() {
     const dates = [];
     const today = new Date();
@@ -17,3 +17,5 @@ export class DateHelper {
     return dates;
   }
 }
+
+module.exports.DateHelper = DateHelper;

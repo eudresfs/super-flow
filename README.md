@@ -1,37 +1,99 @@
-# WhatsApp Flow Endpoint Server
-This endpoint example is designed to be used with the [pre-approved loan Flow template](https://developers.facebook.com/docs/whatsapp/flows/examples/templates)
+# WhatsApp Flows Endpoint
 
-## Flow Endpoint Docs
+Endpoint para processamento de fluxos do WhatsApp, incluindo validação de benefícios, upload de documentos e gestão de leads.
 
-Refer to the [docs here for implementing your Flow Endpoint](https://developers.facebook.com/docs/whatsapp/flows/guides/implementingyourflowendpoint)
+## 🚀 Quick Start
 
-## ⚠️ WARNING ⚠️
+1. **Instalação**
+   ```bash
+   npm install
+   ```
 
-- This project is meant to be an example for prototyping only. It's not production ready.
-- When you remix (fork) this project on Glitch, your code is public by default, unless you choose to make it private (requires paid subscription to Glitch). Do not use this for any proprietary/private code.
-- Env variables are stored & managed by Glitch. Never use the private keys for your production accounts here. Create a temporary private key for testing on Glitch only and replace it with your production key in your own infrastructure.
-- Running this endpoint example on Glitch is completely optional and is not required to use WhatsApp Flows. You can run this code in any other environment you prefer.
+2. **Configuração**
+   - Copie o arquivo `.env.example` para `.env`
+   - Preencha todas as variáveis de ambiente necessárias
 
-## Glitch Setup
+3. **Execução**
+   ```bash
+   npm start
+   ```
 
-1. Create an account on Glitch to have access to all features mentioned here.
-2. Remix this project on Glitch.
-3. Create a private & public key pair for testing, if you haven't already, using the included script `src/keyGenerator.js`. Run the below command in the terminal to generate a key pair, then follow [these steps to upload the key pair](https://developers.facebook.com/docs/whatsapp/flows/guides/implementingyourflowendpoint#upload_public_key) to your business phone number.
+## 🛠️ Tecnologias
+
+- Node.js
+- Express
+- Axios
+- Winston (Logging)
+- Crypto
+
+## 📦 Funcionalidades
+
+- ✅ Validação de CPF/NIS
+- 🔒 Criptografia de dados
+- 📄 Upload de documentos
+- 📍 Consulta de CEP
+- 💼 Gestão de benefícios
+
+## 🔐 Segurança
+
+- Rate limiting por IP
+- Validação de assinatura
+- Criptografia de dados sensíveis
+- Sanitização de logs
+
+## 📝 Endpoints
+
+### POST /
+Endpoint principal para processamento de fluxos.
+
+**Headers necessários:**
+- `x-hub-signature-256`: Assinatura HMAC SHA256
+- `Content-Type`: application/json
+
+### GET /health
+Endpoint de health check.
+
+## ⚙️ Configuração
+
+### Variáveis de Ambiente
+- `PORT`: Porta do servidor
+- `APP_SECRET`: Chave para validação de assinatura
+- `PRIVATE_KEY`: Chave privada para descriptografia
+- `CRM_API_KEY`: Chave da API do CRM
+- etc.
+
+## 🧪 Testes
+```bash
+npm test
 ```
-node src/keyGenerator.js {passphrase}
-```
-4. Click on the file ".env" on the left sidebar, **then click on `✏️ Plain text` on top. Do not edit it directly from UI as it will break your key formatting.**
-5. Edit it with your private key and passphrase. Make sure a multiline key has the same line breaks like below. Env variables are only visible to the owner of the Glitch project. **Use a separate private key for testing only, and not your production key.**
-```
-PASSPHRASE="my-secret"
 
-PRIVATE_KEY="-----[REPLACE THIS] BEGIN RSA PRIVATE KEY-----
-MIIE...
-...
-...xyz
------[REPLACE THIS] END RSA PRIVATE KEY-----"
-```
+## 📊 Monitoramento
 
-6. Use the new Glitch URL as your endpoint URL, eg: `https://project-name.glitch.me`. You can find this URL by clicking on `Share` on top right, then copy the `Live Site` URL.
-7. Edit `src/flow.js` with your logic to navigate between the Flow screens.
-8. Click on the `Logs` tab at the bottom to view server logs. The logs section also has a button to attach a debugger via Chrome devtools.
+O sistema inclui logs estruturados com:
+- Request ID
+- Métricas de duração
+- Rastreamento de erros
+- Health check
+
+## ⚠️ Limites
+
+- Rate limit: 100 requisições por minuto por IP
+- Tamanho máximo de payload: 10MB
+- Cache de CEP: 24 horas
+- Cache de benefícios: 30 minutos
+
+## 🤝 Contribuição
+
+1. Fork o projeto
+2. Crie sua branch (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
+
+## 📱 Contato
+
+Para suporte ou dúvidas, entre em contato com a equipe de desenvolvimento.
+
+## 📄 Licença
+
+Este projeto está sob a licença HeyMax.io

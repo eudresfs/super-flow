@@ -1,110 +1,206 @@
 import express from "express";
-import { decryptRequest, encryptResponse, FlowEndpointException } from "./encryption.js";
-import { getNextScreen } from "./flow.js";
+import { decryptRequest, encryptResponse } from "./encryption.js";
+import { FlowManager } from "./flow.js";
 import crypto from "crypto";
+import dotenv from 'dotenv';
+import { Logger } from './utils/logger.js';
+import { CONFIG } from './config/constants.js';
 
-const app = express();
-const { APP_SECRET, PRIVATE_KEY, PASSPHRASE = "", PORT = "3000" } = process.env;
+const flowManager = new FlowManager();
 
-// Função para testar a chave privada no início do servidor
-function testPrivateKey() {
+class ServerError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.name = 'ServerError';
+    this.code = code;
+  }
+}
+
+class SecurityError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'SecurityError';
+  }
+}
+
+dotenv.config();
+
+// Rate limiting
+const rateLimiter = new Map();
+const RATE_LIMIT = {
+  WINDOW: 60000, // 1 minuto
+  MAX_REQUESTS: 100
+};
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const userRequests = rateLimiter.get(ip) || { count: 0, timestamp: now };
+
+  if (now - userRequests.timestamp < RATE_LIMIT.WINDOW) {
+    if (userRequests.count >= RATE_LIMIT.MAX_REQUESTS) {
+      throw new SecurityError('Rate limit exceeded');
+    }
+    userRequests.count++;
+  } else {
+    userRequests.count = 1;
+    userRequests.timestamp = now;
+  }
+  
+  rateLimiter.set(ip, userRequests);
+}
+
+// Limpeza periódica do rate limiter
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of rateLimiter.entries()) {
+    if (now - data.timestamp >= RATE_LIMIT.WINDOW) {
+      rateLimiter.delete(ip);
+    }
+  }
+}, RATE_LIMIT.WINDOW);
+
+async function validateEnvironment() {
+  const required = ['APP_SECRET', 'PRIVATE_KEY', 'PORT'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length) {
+    throw new ServerError(
+      `Missing environment variables: ${missing.join(', ')}`,
+      'ENV_ERROR'
+    );
+  }
+
   try {
-    const privateKey = crypto.createPrivateKey({
-      key: PRIVATE_KEY,
+    crypto.createPrivateKey({
+      key: process.env.PRIVATE_KEY,
       format: 'pem',
       type: 'pkcs8',
-      passphrase: PASSPHRASE
+      passphrase: process.env.PASSPHRASE || ""
     });
-    
-    // Gerar e exibir a chave pública correspondente
-    const publicKey = crypto.createPublicKey(privateKey);
-    const publicKeyPem = publicKey.export({
-      type: 'spki',
-      format: 'pem'
-    });
-    
-    console.log('✅ Private key loaded successfully');
-    console.log('📢 Public key for client:');
-    console.log(publicKeyPem.toString());
-    return true;
+    Logger.info('✅ Private Key carregada com sucesso');
   } catch (error) {
-    console.error('❌ Error loading private key:', error);
-    return false;
+    throw new ServerError('Invalid private key', 'KEY_ERROR');
   }
 }
 
-app.use(
-  express.json({
-    verify: (req, res, buf, encoding) => {
-      req.rawBody = buf?.toString(encoding || "utf8");
-    },
-  }),
-);
+const app = express();
+
+// Middlewares
+app.use(express.json({
+  verify: (req, res, buf, encoding) => {
+    req.rawBody = buf?.toString(encoding || "utf8");
+  },
+  limit: '10mb' // Limite de tamanho da requisição
+}));
+
+app.use((req, res, next) => {
+  req.startTime = Date.now();
+  next();
+});
+
+// Middleware de validação de assinatura
+function validateSignature(req) {
+  const signature = req.get("x-hub-signature-256");
+  if (!signature) {
+    throw new SecurityError("Missing signature");
+  }
+
+  const hmac = crypto.createHmac("sha256", process.env.APP_SECRET);
+  const expectedSignature = `sha256=${hmac.update(req.rawBody).digest('hex')}`;
+
+  if (!crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  )) {
+    throw new SecurityError("Invalid signature");
+  }
+}
 
 app.post("/", async (req, res) => {
-  // Verificação da chave privada
-  if (!PRIVATE_KEY) {
-    console.error('Private key is empty. Check your "PRIVATE_KEY" environment variable.');
-    return res.status(200).send(); // Retornando 200 conforme instrução
-  }
-
-  // Verificação da assinatura da requisição
-  if (!isRequestSignatureValid(req)) {
-    console.error("Invalid request signature.");
-    return res.status(200).send(); // Retornando 200 conforme instrução
-  }
-
-  let decryptedRequest;
+  const requestId = crypto.randomBytes(16).toString('hex');
+  
   try {
-    decryptedRequest = decryptRequest(req.body, PRIVATE_KEY, PASSPHRASE);
-  } catch (err) {
-    console.error("Decryption failed:", err);
-    return res.status(200).send(); // Retornando 200 conforme instrução
-  }
+    // Rate limiting por IP
+    checkRateLimit(req.ip);
 
-  const { aesKeyBuffer, initialVectorBuffer, decryptedBody } = decryptedRequest;
-  console.log("💬 Decrypted Request:", decryptedBody);
+    // Validação de assinatura
+    validateSignature(req);
 
-  try {
-    const screenResponse = await getNextScreen(decryptedBody);
-    console.log("👉 Response to Encrypt:", screenResponse);
+    // Descriptografia
+    const decryptedRequest = await decryptRequest(
+      req.body,
+      process.env.PRIVATE_KEY,
+      process.env.PASSPHRASE
+    );
 
-    res.send(encryptResponse(screenResponse, aesKeyBuffer, initialVectorBuffer));
-  } catch (err) {
-    console.error("Error processing request:", err);
-    res.status(200).send(); // Retornando 200 conforme instrução
+    Logger.info('Requisição recebida', {
+      requestId,
+      action: decryptedRequest.decryptedBody.action,
+      timestamp: new Date().toISOString()
+    });
+
+    // Processamento
+    const screenResponse = await flowManager.getNextScreen(decryptedRequest.decryptedBody);
+
+    // Resposta
+    const encryptedResponse = encryptResponse(
+      screenResponse,
+      decryptedRequest.aesKeyBuffer,
+      decryptedRequest.initialVectorBuffer
+    );
+
+    Logger.info('Requisição completa', {
+      requestId,
+      duration: Date.now() - req.startTime,
+      action: decryptedRequest.decryptedBody.action,
+      screen: screenResponse.screen
+    });
+
+    res.send(encryptedResponse);
+
+  } catch (error) {
+    Logger.error('Requisição falhou', {
+      requestId,
+      error: error.message,
+      code: error.code,
+      duration: Date.now() - req.startTime
+    });
+    
+    res.status(200).send();
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is listening on port: ${PORT}`);
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
-// Função para verificação da assinatura da requisição
-function isRequestSignatureValid(req) {
-  if(!APP_SECRET) {
-    console.warn("App Secret is not set up.");
-    return true;
+// Inicialização do servidor
+async function startServer() {
+  try {
+    await validateEnvironment();
+    
+    const server = app.listen(process.env.PORT, () => {
+      Logger.info(`Server iniciado na porta: ${process.env.PORT}`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      Logger.info('SIGTERM received. Shutting down gracefully...');
+      server.close(() => {
+        Logger.info('Server closed');
+        process.exit(0);
+      });
+    });
+
+  } catch (error) {
+    Logger.error('Server startup failed', { error: error.message });
+    process.exit(1);
   }
-
-  const signatureHeader = req.get("x-hub-signature-256");
-  if (!signatureHeader) {
-    console.error("Signature header missing.");
-    return false;
-  }
-
-  const signatureBuffer = Buffer.from(signatureHeader.replace("sha256=", ""), "utf-8");
-
-  const hmac = crypto.createHmac("sha256", APP_SECRET);
-  const digestString = hmac.update(req.rawBody).digest('hex');
-  const digestBuffer = Buffer.from(digestString, "utf-8");
-
-  console.log("Calculated digest:", digestString);
-  console.log("Signature from header:", signatureHeader);
-
-  if (!crypto.timingSafeEqual(digestBuffer, signatureBuffer)) {
-    console.error("Error: Request Signature did not match");
-    return false;
-  }
-  return true;
 }
+
+startServer();
