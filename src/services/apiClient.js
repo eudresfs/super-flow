@@ -4,6 +4,19 @@ const { Logger } = require('../utils/logger');
 const FormData = require('form-data');
 const { CONFIG } = require('../config/constants');
 
+/**
+ * @fileoverview Cliente API para integração com CRM e serviços externos
+ * 
+ * Este módulo fornece uma interface unificada para todas as operações de API,
+ * incluindo:
+ * - Gestão de leads e contatos
+ * - Upload e processamento de documentos
+ * - Integração com serviços de validação
+ * - Cache e rate limiting
+ * 
+ * @module apiClient
+ */
+
 // Hierarquia de erros
 class APIError extends Error {
   constructor(message, code, originalError = null) {
@@ -52,7 +65,7 @@ async function withRetry(operation, retries = 3) {
       return await operation();
     } catch (error) {
       if (attempt === retries) throw error;
-      const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+      const delay = Math.min(200 * Math.pow(2, attempt), 1000);
       await new Promise(resolve => setTimeout(resolve, delay));
       Logger.info(`Retry attempt ${attempt} after ${delay}ms`);
     }
@@ -96,6 +109,7 @@ const getRouteConfig = (url) => {
 
 // Função principal de requisição usando proxy
 const makeRequest = async (method, url, data = null, additionalHeaders = {}) => {
+  const startTime = Date.now();
   await rateLimiter.checkLimit();
   
   const routeConfig = getRouteConfig(url);
@@ -119,6 +133,7 @@ const makeRequest = async (method, url, data = null, additionalHeaders = {}) => 
   };
 
   try {
+
     Logger.info('Request Details', { 
       method,
       proxyUrl,
@@ -183,33 +198,116 @@ const makeRequest = async (method, url, data = null, additionalHeaders = {}) => 
   }
 };
 
-// Client API base class
+/**
+ * Gerenciador de cache com limpeza automática
+ * @class
+ * 
+ * @example
+ * const cache = new CacheManager(300000); // TTL de 5 minutos
+ * cache.set('chave', { dados: 'valor' });
+ * const valor = cache.get('chave');
+ */
+class CacheManager {
+  /**
+   * @param {number} ttl - Tempo de vida em milissegundos
+   */
+  constructor(ttl = 5 * 60 * 1000) {
+    this.cache = new Map();
+    this.ttl = ttl;
+    this._startCleanupInterval();
+  }
+
+  _startCleanupInterval() {
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, value] of this.cache.entries()) {
+        if (now - value.timestamp > value.ttl) {
+          this.cache.delete(key);
+        }
+      }
+    }, 60000); // Limpa cache expirado a cada minuto
+  }
+
+  set(key, value, customTtl = null) {
+    this.cache.set(key, {
+      data: value,
+      timestamp: Date.now(),
+      ttl: customTtl || this.ttl
+    });
+  }
+
+  get(key) {
+    const cached = this.cache.get(key);
+    if (!cached) return null;
+    
+    if (Date.now() - cached.timestamp > cached.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return cached.data;
+  }
+
+  invalidate(key) {
+    this.cache.delete(key);
+  }
+}
+
+// Substituir a implementação atual do cache
+const cacheManager = new CacheManager(CACHE_TTL);
+
+/**
+ * Cliente base para APIs
+ * Fornece funcionalidades comuns como retry, rate limiting e timeouts
+ * @class
+ * 
+ * @example
+ * const client = new APIClientBase({
+ *   baseURL: 'https://api.exemplo.com',
+ *   timeout: 5000,
+ *   maxRetries: 3
+ * });
+ */
 class APIClientBase {
+  /**
+   * @param {Object} config - Configurações do cliente
+   * @param {string} config.baseURL - URL base da API
+   * @param {number} [config.timeout] - Timeout em ms
+   * @param {number} [config.maxRetries] - Número máximo de retentativas
+   */
   constructor(config) {
     if (!config || !config.baseURL) {
-      throw new Error('API Client requires baseURL configuration');
+      throw new Error('API Client requer configuração baseURL');
     }
 
     this.config = {
       baseURL: config.baseURL,
-      timeout: config.timeout || 5000,
+      timeout: config.timeout || CONFIG.REQUEST_TIMEOUT,
       maxRetries: config.maxRetries || 3,
       retryDelay: config.retryDelay || 1000,
+      headers: config.headers || {},
     };
 
-    this.setupLogging();
+    // Inicializar rate limiter específico para a instância
+    this.rateLimiter = new RateLimiter(
+      config.rateLimit?.limit,
+      config.rateLimit?.interval
+    );
   }
 
-  setupLogging() {
-    Logger.info('API Client initialized', {
-      baseURL: this.config.baseURL,
-      timeout: this.config.timeout,
-      maxRetries: this.config.maxRetries
-    });
+  // Método para construir URL completa
+  _buildUrl(endpoint) {
+    return endpoint.startsWith('http') ? endpoint : `${this.config.baseURL}${endpoint}`;
   }
 
   async makeRequest(method, endpoint, data = null, headers = {}) {
-    return makeRequest(method, endpoint, data, headers);
+    const url = this._buildUrl(endpoint);
+    return makeRequest(
+      method, 
+      url, 
+      data, 
+      { ...this.config.headers, ...headers }
+    );
   }
 }
 
@@ -223,41 +321,120 @@ const formatDate = (data) => {
 };
 
 // Funções de negócio
-const createContact = (data, flowToken) => {
-  const sanitizedPhone = data.telefone ? data.telefone.replace(/\D/g, '') : '55849988341824';
-  const phoneNumber = sanitizedPhone.substring(2, 4) + '9' + sanitizedPhone.substring(sanitizedPhone.length - 8);
+/**
+ * Cria um novo contato no sistema.
+ * 
+ * @example
+ * const novoContato = await createContact({
+ *   telefone: "11999999999",
+ *   cpf: "12345678900",
+ *   nome: "João Silva",
+ *   email: "joao@email.com",
+ *   creditGroup: "INSS"
+ * }, "flow-123");
+ * 
+ * @example
+ * // Com campos opcionais
+ * const contatoCompleto = await createContact({
+ *   telefone: "11999999999",
+ *   cpf: "12345678900",
+ *   nome: "João Silva",
+ *   email: "joao@email.com",
+ *   creditGroup: "INSS",
+ *   dataNascimento: "01/01/1980",
+ *   bancosAutorizados: ["bmg", "facta"]
+ * }, "flow-123");
+ */
+const createContact = async (data, flowToken) => {
+  const startTime = Date.now();
+  // Valida se todos os campos obrigatórios estão presentes
+  const requiredFields = ['telefone', 'cpf', 'nome', 'creditGroup'];
+  const missingFields = requiredFields.filter(field => !data[field]);
+  
+  if (missingFields.length > 0) {
+    throw new Error(`Campos obrigatórios ausentes: ${missingFields.join(', ')}`);
+  }
 
-  return makeRequest('post', '/v2/criar-contato', {
-    telefone: phoneNumber,
-    matricula: data.matricula,
-    nome: data.nome,
-    email: data.email,
-    cpf: data.cpf,
-    dataNascimento: formatDate(data.dataNascimento),
-    funil: data.creditGroup,
-    naoQualificar: true,
-    urlOrigem: `https://app.heymax.io/${flowToken}`,
-    urlReferencia: "https://app.heymax.io/"
-  });
-};
+ 
+  /**
+   * Formata o número de telefone removendo caracteres não numéricos
+   * e adicionando o dígito 9 na posição correta
+   * @param {string} phone - Número de telefone a ser formatado
+   * @returns {string} Número de telefone formatado
+   * @throws {Error} Se o telefone for muito curto ou inválido
+   */
+  const formatPhoneNumber = (phone) => {
+    const sanitized = phone.replace(/\D/g, '');
+    return `${sanitized.substring(2, 4)}9${sanitized.slice(-8)}`;
+  };
+ 
+  try {
+    // Construção do payload base com campos obrigatórios
+    const basePayload = {
+      telefone: formatPhoneNumber(data.telefone),
+      cpf: data.cpf,
+      nome: data.nome,
+      email: data.email,
+      funil: data.creditGroup,
+      naoQualificar: true,
+      urlOrigem: `https://app.heymax.io/${flowToken}`,
+      urlReferencia: "https://app.heymax.io/"
+    };
+ 
+    // Mapeamento de como cada campo opcional deve ser tratado
+    const optionalFieldsMap = {
+      matricula: 'matricula',
+      dataNascimento: (value) => ({ dataNascimento: formatDate(value) }),
+      bancosAutorizados: (value) => ({ bancosAutorizados: Array.isArray(value) ? value : [value] }),
+      nomeRepresentante: 'nomeRepresentante',
+      cpfRepresentante: 'cpfRepresentante',
+      jaTrabalhouCarteiraAssinada: (value) => ({ jaTrabalhouCarteiraAssinada: value === 'true' }),
+      saqueHabilitado: (value) => ({ saqueHabilitado: value === 'true' }),
+      especie: (value) => ({ especie: Number(value) })
+    };
+ 
+    // Processa campos opcionais e adiciona ao payload base
+    const payload = Object.entries(optionalFieldsMap).reduce((acc, [field, mapper]) => {
+      if (data[field] !== undefined && data[field] !== null && data[field] !== '') {
+        const value = typeof mapper === 'function' 
+          ? mapper(data[field])      // Se for função, aplica a transformação
+          : { [mapper]: data[field] }; // Se não, usa o valor direto
+        return { ...acc, ...value };
+      }
+      return acc;
+    }, basePayload);
+ 
+    // Faz a requisição para a API
+    return await makeRequest('post', '/v2/criar-contato', payload);
+  } catch (error) {
+    // Registra o erro mantendo a stack trace original
+    console.error('Erro ao criar contato:', error);
+    throw error;
+  }
+ };
 
 // Função de processamento de imagens do WhatsApp
 async function decryptWhatsAppImage(fileData) {
+  if (!fileData) {
+    throw new ValidationError('Dados do arquivo são obrigatórios');
+  }
+
+  const startTime = Date.now();
+  
   try {
     Logger.info('Iniciando descriptografia de imagem', {
       hasUrl: !!fileData?.cdn_url,
-      hasEncryptionData: !!fileData?.encryption_metadata
+      hasEncryptionData: !!fileData?.encryption_metadata,
+      fileName: fileData?.file_name
     });
 
-    if (fileData.cdn_url === 'EXAMPLE_DATA__CDN_URL_WILL_COME_IN_THIS_FIELD') {
-      return Buffer.from(
-        'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-        'base64'
-      );
+    // Validações mais específicas
+    if (!fileData.cdn_url) {
+      throw new ValidationError('URL do CDN não fornecida');
     }
 
-    if (!fileData?.cdn_url || !fileData?.encryption_metadata) {
-      throw new Error('Dados da imagem incompletos ou ausentes');
+    if (!fileData.encryption_metadata) {
+      throw new ValidationError('Dados de criptografia ausentes');
     }
 
     const url = new URL(fileData.cdn_url);
@@ -276,30 +453,88 @@ async function decryptWhatsAppImage(fileData) {
 
     const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey, iv);
     decipher.setAutoPadding(true);
-    
+
     return Buffer.concat([decipher.update(encryptedBuffer)]);
 
   } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+
     Logger.error('Erro na descriptografia de imagem', {
       error: error.message,
       stack: error.stack,
+      duration: Date.now() - startTime,
       fileData: {
         hasCdnUrl: !!fileData?.cdn_url,
-        hasEncryption: !!fileData?.encryption_metadata
+        hasEncryption: !!fileData?.encryption_metadata,
+        fileName: fileData?.file_name
       }
     });
-    throw error;
+
+    throw new APIError('Falha ao processar imagem', 500, error);
   }
 }
 
-/** Função para upload de arquivos
-* @param {Object} data - Dados do arquivo capturados no flows
-* @param {boolean} shouldRegister - Deve registrar o arquivo na API do CRM
-* @param {string} preset - Preset do Cloudinary
-* @param {string} folder - Pasta do Cloudinary
-* @returns {Promise<Object>} Resposta da API 
-*/
+/**
+ * Timeouts específicos por operação em milissegundos
+ * @constant {Object}
+ */
+const OPERATION_TIMEOUTS = {
+  upload: 30000,    // 30s para uploads
+  download: 20000,  // 20s para downloads
+  decrypt: 15000,   // 15s para descriptografia
+  default: CONFIG.REQUEST_TIMEOUT
+};
+
+const getOperationTimeout = (operation) => {
+  return OPERATION_TIMEOUTS[operation] || OPERATION_TIMEOUTS.default;
+};
+
+/**
+ * Mapeamento de tipos de documentos e suas configurações
+ * Usado no processamento de uploads
+ * @constant {Object}
+ */
+const documentTypeMap = {
+  foto_documento: fotoDocumentoHandler,
+  rg: fotoDocumentoHandler,
+  contracheque: () => ({
+    tipo: "paycheck",
+    nome: "Contracheque"
+  }),
+  comprovante_residencia: () => ({
+    tipo: "proof_residence",
+    nome: "Comprovante de Residência"
+  }),
+  cad_unico: () => ({
+    tipo: "cad_unico",
+    nome: "CAD Único"
+  }),
+  print_portal: () => ({
+    tipo: "print_portal",
+    nome: "Print Portal"
+  })
+};
+
+/**
+ * Upload e registro de arquivos no sistema
+ * 
+ * @throws {ValidationError} Quando os dados do arquivo são inválidos
+ * @throws {APIError} Quando ocorre erro na API do Cloudinary
+ * @throws {Error} Quando nenhum arquivo é fornecido para upload
+ * 
+ * @example
+ * const resultado = await uploadFiles({
+ *   leadId: "123",
+ *   foto_documento: [
+ *     { file_name: "frente.jpg", ... },
+ *     { file_name: "verso.jpg", ... }
+ *   ]
+ * });
+ */
 async function uploadFiles(data, shouldRegister = true, preset = 'gov-ce-preset', folder = 'gov-ce') {
+  const timeout = getOperationTimeout('upload');
   const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/consigmais/upload';
   const API_KEY = '849353588224476';
   const UPLOAD_PRESET = preset;
@@ -311,7 +546,10 @@ async function uploadFiles(data, shouldRegister = true, preset = 'gov-ce-preset'
     shouldRegister
   });
 
+  const startTime = Date.now();
+
   try {
+
     const documentTypes = ['foto_documento', 'contracheque', 'comprovante_residencia', 'cad_unico', 'print_portal', 'rg'];
     const currentDoc = documentTypes.find(type => data[type]);
     const files = data[currentDoc];
@@ -326,28 +564,6 @@ async function uploadFiles(data, shouldRegister = true, preset = 'gov-ce-preset'
       nome: totalFiles > 1 ? (index === 0 ? "Frente do Documento" : "Verso do Documento") : "Frente do Documento"
     });
     
-    // Mapeamento de tipos de documentos
-    const documentTypeMap = {
-      foto_documento: fotoDocumentoHandler,
-      rg: fotoDocumentoHandler,
-      contracheque: () => ({
-        tipo: "paycheck",
-        nome: "Contracheque"
-      }),
-      comprovante_residencia: () => ({
-        tipo: "proof_residence",
-        nome: "Comprovante de Residência"
-      }),
-      cad_unico: () => ({
-        tipo: "cad_unico",
-        nome: "CAD Único"
-      }),
-      print_portal: () => ({
-        tipo: "print_portal",
-        nome: "Print Portal"
-      })
-    };    
-
     const processFiles = await Promise.all(files.map(async (file, index) => {
       const decryptedBuffer = await decryptWhatsAppImage(file);
       const formData = new FormData();
@@ -365,7 +581,7 @@ async function uploadFiles(data, shouldRegister = true, preset = 'gov-ce-preset'
         headers: formData.getHeaders(),
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
-        timeout: 30000
+        timeout: timeout
       });
 
       const docInfo = documentTypeMap[currentDoc](index, files.length);
@@ -402,27 +618,67 @@ async function uploadFiles(data, shouldRegister = true, preset = 'gov-ce-preset'
 }
 
 /**
- * Registra uma nova conta
- * @param {Object} data - Dados da conta
- * @returns {Promise<Object>} Dados da conta registrada 
+ * Registra uma nova conta bancária para o lead
+ * 
+ * @example
+ * const conta = await registerAccount({
+ *   leadId: "abc-123",
+ *   agencia: "0001",
+ *   conta: "123456",
+ *   tipoConta: "corrente",
+ *   codigoBanco: "237 - Bradesco"
+ * });
+ * 
+ * @example
+ * // Registro usando CPF
+ * const conta = await registerAccount({
+ *   cpf: "12345678900",
+ *   agencia: "0001",
+ *   conta: "123456",
+ *   tipoConta: "poupanca",
+ *   codigoBanco: "104 - Caixa"
+ * });
+ * 
+ * @throws {ValidationError} Quando CPF ou leadId não são fornecidos
  */
 const registerAccount = async (data) => {
-  return makeRequest('post', '/v2/registrar-conta', data);
+  if (!data.leadId && !data.cpf) {
+    throw new ValidationError('CPF ou leadId é obrigatório');
+  }
+
+  const allowedFields = ['leadId', 'cpf', 'agencia', 'conta', 'tipoConta', 'codigoBanco'];
+  const formattedData = Object.keys(data)
+    .filter(key => allowedFields.includes(key))
+    .reduce((obj, key) => {
+      obj[key] = key === 'codigoBanco' ? data[key].split(' - ')[0] : data[key];
+      return obj;
+    }, {});
+    
+  const response = await makeRequest('post', '/v2/registrar-conta', formattedData);
+
+  Logger.info('Request feito para registrar nova conta', {
+    method: 'post',
+    url: '/v2/registrar-conta',
+    data: formattedData,
+    response: response
+  });
+
+  return response;
 };
 
 /**
- * Busca informações de CEP
- * @param {string} cep - CEP para buscar
- * @returns {Promise<Object>} Dados do endereço
- */
-const fetchCepInfo = async (cep) => {
-  return makeRequest('get', `https://brasilapi.com.br/api/cep/v1/${cep}`);
-};
-
-/**
- * Registra documento do lead
- * @param {Object} data - Dados do documento
- * @returns {Promise<Object>} Resposta da API
+ * Registra documentos do lead
+ * 
+ * @example
+ * const doc = await registerDocument({
+ *   leadId: "abc-123",
+ *   numero: "123456789",
+ *   dataEmissao: "01/01/2020",
+ *   orgaoEmissor: "SSP",
+ *   ufAgencia: "SP"
+ * });
+ * 
+ * @throws {ValidationError} Quando UF da agência não é fornecida
  */
 const registerDocument = async (data) => {
   if (!data.ufAgencia) {
@@ -440,7 +696,13 @@ const registerDocument = async (data) => {
  * @returns {Promise<Object>} Resposta da API
  */
 const updateBasicLeadData = async (data) => {
-  return makeRequest('post', '/v2/registrar-dados-empregaticios', data);
+  const formattedData = { ...data };
+  if (data.dataNascimento) {
+    formattedData.dataNascimento = formatDate(data.dataNascimento);
+  }
+
+  Logger.info('Atualizando dados básicos do lead', { data: formattedData });
+  return makeRequest('patch', '/v1/dados-basicos', formattedData);
 };
 
 /**
@@ -463,6 +725,23 @@ const nextStage = async (identifier, creditGroup) => {
     ? `/v1/proxima-etapa/${identifier}/complete`
     : `/v1/proxima-etapa/${creditGroup}/${identifier}/complete`;
   return makeRequest('get', path);
+};
+
+/**
+ * Inclui um novo contrato
+ * @param {Object} data - Dados do contrato
+ * @returns {Promise<Object>} Resposta da API
+ */
+const includeContract = async (data) => {
+  if (!data.leadId) {
+    throw new ValidationError('ID do lead é obrigatório');
+  }
+  if (!data.opportuntityId) {
+    throw new ValidationError('ID da oportunidade é obrigatório');
+  }
+
+  Logger.info('Incluindo novo contrato', { data });
+  return makeRequest('post', '/v1/lead/proposal', data);
 };
 
 /**
@@ -520,6 +799,8 @@ const tagAssign = async (leadId, tagId) => {
  * @returns {Promise<Object>} Resultado da requalificação
  */
 const requalify = async ({ leadId, type, url }) => {
+  const startTime = Date.now();
+
   if (!leadId) throw new Error('ID do lead é obrigatório');
   if (!type) throw new Error('Tipo do documento é obrigatório');
   if (!url) throw new Error('URL do documento é obrigatória');

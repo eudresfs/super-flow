@@ -1,0 +1,82 @@
+// utils/formatCards.js
+const { Logger } = require('./logger');
+const axios = require('axios');
+const { Buffer } = require('buffer');
+
+// Função para converter uma URL de imagem para base64
+async function urlToBase64(url) {
+  try {
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const base64Full = Buffer.from(response.data).toString('base64');
+    
+    // Remove o prefixo se existir
+    const base64Clean = base64Full.replace(/^data:image\/[a-z]+;base64,/, '');
+    return base64Clean;
+  } catch (error) {
+    Logger.error('Failed to convert image:', { url, error: error.message });
+    return '';
+  }
+}
+
+/**
+ * Formata uma oportunidade com base no funil fornecido.
+ *
+ * @param {Object} opp - A oportunidade a ser formatada.
+ * @param {Object} funil - O objeto funil usado para formatar a oportunidade.
+ * @returns {Promise<Object|null>} Uma promessa que resolve para a oportunidade formatada ou null se houver um erro.
+ */
+async function formatOpportunity(opp, funil) {
+  if (!opp) return null;
+
+  try {
+    // Converte a URL do logo do banco para base64, se disponível
+    const imageBase64 = opp.bancoLogo ? await urlToBase64(opp.bancoLogo) : '';
+
+    // Formata a oportunidade com base no funil fornecido
+    switch (funil) {
+      case 'fgts':
+        return {
+          id: opp.id,
+          title: `R$ ${(opp.valor || 0).toFixed(2)}`,
+          description: `${opp.banco} | ${opp.prazo || 0} anos antecipados | ${opp.taxa || 0}% a.m`,
+          image: imageBase64
+        };
+      default:
+        return {
+          id: opp.id,
+          title: `R$ ${(opp.valor || 0).toFixed(2)}`,
+          metadata: `${opp.prazo || 0}x de R$ ${(opp.valorParcela || 0).toFixed(2)}`,
+          image: imageBase64
+        };
+    }
+  } catch (error) {
+    Logger.error('Failed to format opportunity:', { id: opp.id, error: error.message });
+    return null;
+  }
+}
+
+/**
+ * Transforma um array de oportunidades formatando cada oportunidade usando o funil fornecido.
+ *
+ * @param {Array} opportunities - O array de oportunidades a ser transformado.
+ * @param {Object} funil - O objeto funil usado para formatar cada oportunidade.
+ * @returns {Promise<Array>} Uma promessa que resolve para um array de oportunidades formatadas.
+ * @throws {Error} Se a entrada não for um array ou se houver um erro durante a formatação.
+ */
+async function transformData(opportunities = [], funil) {
+  try {
+    if (!Array.isArray(opportunities)) {
+      throw new Error('Input must be an array');
+    }
+
+    const cards = await Promise.all(
+      opportunities.map(opp => formatOpportunity(opp, funil))
+    );
+
+    return cards.filter(Boolean);
+  } catch (error) {
+    throw new Error(`Error formatting opportunities: ${error.message}`);
+  }
+}
+
+module.exports = { transformData };

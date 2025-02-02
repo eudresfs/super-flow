@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "dependencies": {
     "@azure/functions": "^4.0.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.55.3",
+    "@opentelemetry/sdk-node": "^0.57.1",
+    "applicationinsights": "^3.4.0",
     "axios": "^1.7.7",
     "crypto": "^1.0.1",
     "dotenv": "^16.0.3",
@@ -17,8 +20,9 @@
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
+    "applicationinsights": "^2.9.5",
     "eslint": "^8.x.x",
-    "jest": "^29.x.x",
-    "eslint-plugin-jest": "^27.x.x"
+    "eslint-plugin-jest": "^27.x.x",
+    "jest": "^29.x.x"
   }
 }

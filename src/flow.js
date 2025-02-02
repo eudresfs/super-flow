@@ -1,19 +1,42 @@
-const { BFController } = require('./controllers/bf_controller');
-const { GovCEController } = require('./controllers/gov_ce_controller');
-/* const { INSSController } = require('./controllers/inss_controller');
-const { FGTSController } = require('./controllers/fgts_controller');
-const { SIAPEController } = require('./controllers/siape_controller'); */
+/**
+ * @fileoverview Gerencia os fluxos de processamento de ações, incluindo funcionalidades de rate limiting, retry com backoff,
+ * timeout e integração com telemetria.
+ *
+ * Este módulo gerencia os fluxos de execução a partir do payload recebido. Realiza as seguintes operações:
+ *    - Validação básica e específica do payload.
+ *    - Controle de taxa (Rate Limiting) para evitar sobrecarga.
+ *    - Mecanismo de retry com backoff exponencial.
+ *    - Execução de operações com timeout e registro detalhado (logs).
+ *    - Gerenciamento dos controllers para diferentes fluxos: "bolsa-familia", "gov-ce", "fgts", "inss" e "padrao".
+ *    - Integração com o Circuit Breaker e Telemetria para monitoramento e resiliência.
+ *
+ * Dependências:
+ *    - INSSController, FGTSController, GovCEController, BFController, CommonController: Controllers responsáveis pelos fluxos.
+ *    - Logger: Utilitário para geração de logs.
+ *    - CircuitBreaker: Implementação de circuit breaker para tratamento de falhas.
+ *    - CONFIG: Configurações globais de operação e rate limiting.
+ *    - telemetry: Serviço de telemetria para rastreamento de métricas e eventos.
+ *
+ * @module flow
+ */
+
+const INSSController = require('./controllers/INSSController');
+const FGTSController = require('./controllers/FGTSController');
+const GovCEController = require('./controllers/GovCEController');
+const BFController = require('./controllers/BFController');
+const CommonController = require('./controllers/CommonController');
 const { Logger } = require('./utils/logger');
 const { CONFIG } = require('./config/constants');
-const { CircuitBreaker } = require('./utils/circuitBreaker');
-
+const { CircuitBreaker } = require('./utils/circuitBreaker'); 
+const { telemetry } = require('./services/telemetryService');
 
 const INITIAL_SCREENS = {
   'bolsa-familia': 'front',
-  'gov-ce': 'BOAS_VINDAS',
-  'fgts': '', 
-  'inss': '', 
-  'siape': ''
+  'gov-ce': 'FRONT',
+  'fgts': 'front',
+  'inss': 'opportunities', 
+  'siape': '',
+  'padrao': 'front'
 };
 
 
@@ -55,7 +78,10 @@ class FlowManager {
   constructor() {
     this.controllers = {
       'bolsa-familia': new BFController(),
-      'gov-ce': new GovCEController()
+      'gov-ce': new GovCEController(),
+      'fgts': new FGTSController(),
+      'inss': new INSSController(),
+      'padrao': new CommonController()
     };
     this.circuitBreaker = new CircuitBreaker({
       failureThreshold: 5,
@@ -78,8 +104,8 @@ class FlowManager {
     }
   }
 
-  // Retry mechanism
-  async #withRetry(operation, maxRetries = 3) {
+  // Retry mechanism com backoff exponencial configurável
+  async #withRetry(operation, maxRetries = CONFIG.OPERATION.RETRY_MAX || 3) {
     for (let i = 0; i < maxRetries; i++) {
       try {
         return await operation();
@@ -88,6 +114,33 @@ class FlowManager {
         await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
       }
     }
+  }
+
+  // Executa a operação com timeout e log caso o tempo limite seja atingido
+  #executeWithTimeout(operationPromise, timeoutDuration, startTime, action, screen) {
+    return Promise.race([
+      operationPromise,
+      new Promise((_, reject) =>
+        setTimeout(() => {
+          Logger.warn('Operação atingiu timeout', {
+            duration: Date.now() - startTime,
+            action,
+            screen
+          });
+          reject(new Error('Operation timed out'));
+        }, timeoutDuration)
+      )
+    ]);
+  }
+
+  // Formata a resposta de erro de validação de forma padronizada
+  #formatErrorResponse(error, payload, controller) {
+    return controller.createResponse(payload.screen || 'error', {}, {
+      flow_token: payload.flow_token,
+      version: payload.version,
+      error: true,
+      errorMessage: error.message
+    });
   }
 
   async getNextScreen(decryptedBody, flowType) {
@@ -111,15 +164,29 @@ class FlowManager {
         data: decryptedBody.data
     });
 
+    telemetry.trackCustomEvent('FlowExecution', {
+      flowType,
+      action: decryptedBody.action,
+      screen: decryptedBody.screen
+    });
+
       // Validações
       validators.validateBasicPayload(decryptedBody);
       validators.validateScreenPayload(decryptedBody);
       this.#checkRateLimit(decryptedBody.flow_token);
 
+      telemetry.trackCustomMetric('RateLimit', this.#rateLimit.get(decryptedBody.flow_token)?.count || 0);
+
       const { action, flow_token, version, data, screen } = decryptedBody;
 
       // Circuit
       return await this.circuitBreaker.execute(async () => {
+        telemetry.trackDependency('ScreenHandler', {
+          target: decryptedBody.screen,
+          duration: Date.now() - startTime,
+          success: true,
+          dependencyTypeName: 'Flow'
+        });
         // Timeout
         // Log antes do timeout
         Logger.info('Iniciando execução da operação', {
@@ -132,17 +199,6 @@ class FlowManager {
       const timeoutDuration = decryptedBody.screen === 'address' ? 
         CONFIG.OPERATION.ADDRESS_TIMEOUT || 45000 : 
         CONFIG.OPERATION.TIMEOUT || 30000;
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => {
-          Logger.warn('Operação atingiu timeout', {
-            duration: Date.now() - startTime,
-            action: decryptedBody.action,
-            screen: decryptedBody.screen
-          });
-          reject(new Error('Operation timed out'));
-        }, timeoutDuration)
-      );
 
       const operationPromise = this.#withRetry(async () => {
         if (action === "INIT") {
@@ -181,7 +237,15 @@ class FlowManager {
         throw new Error(`Ação não suportada: ${action}`);
     });
 
-        return Promise.race([operationPromise, timeoutPromise]);
+      const result = await this.#executeWithTimeout(operationPromise, timeoutDuration, startTime, action, screen);
+
+        telemetry.trackScreenTransition(
+          decryptedBody.screen,
+          result.screen,
+          { flowType, startTime }
+        );
+
+        return result;
       });
 
     } catch (error) {
@@ -195,13 +259,13 @@ class FlowManager {
         screen: decryptedBody.screen
     });
 
+    telemetry.trackScreenError(decryptedBody.screen || 'unknown', error, {
+      flowType,
+      action: decryptedBody.action
+    });
+
       if (error instanceof ValidationError) {
-        return this.bf_controller.createResponse(decryptedBody.screen || 'error', {}, {
-          flow_token: decryptedBody.flow_token,
-          version: decryptedBody.version,
-          error: true,
-          errorMessage: error.message
-        });
+        return this.#formatErrorResponse(error, decryptedBody, controller);
       }
 
       throw error;
@@ -219,6 +283,6 @@ class FlowManager {
 
 const flowManager = new FlowManager();
 
-exports.getNextScreen = (decryptedBody, flowType = 'bolsa-familia') => {
+exports.getNextScreen = (decryptedBody, flowType = 'padrao') => {
   return flowManager.getNextScreen(decryptedBody, flowType);
 };
