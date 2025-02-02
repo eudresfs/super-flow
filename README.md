@@ -1,99 +1,52 @@
-# WhatsApp Flows Endpoint
+# Super Flow
 
-Endpoint para processamento de fluxos do WhatsApp, incluindo validação de benefícios, upload de documentos e gestão de leads.
+Sistema de gerenciamento de fluxo de trabalho desenvolvido com tecnologias modernas.
 
-## 🚀 Quick Start
+## 🚀 Funcionalidades
 
-1. **Instalação**
-   ```bash
-   npm install
-   ```
-
-2. **Configuração**
-   - Copie o arquivo `.env.example` para `.env`
-   - Preencha todas as variáveis de ambiente necessárias
-
-3. **Execução**
-   ```bash
-   npm start
-   ```
+- Gerenciamento de fluxos de trabalho
+- Interface intuitiva
+- Relatórios e análises
+- Integração com sistemas externos
 
 ## 🛠️ Tecnologias
 
 - Node.js
-- Express
-- Axios
-- Winston (Logging)
-- Crypto
+- React
+- PostgreSQL
+- Docker
 
-## 📦 Funcionalidades
+## 📦 Instalação
 
-- ✅ Validação de CPF/NIS
-- 🔒 Criptografia de dados
-- 📄 Upload de documentos
-- 📍 Consulta de CEP
-- 💼 Gestão de benefícios
+1. Clone o repositório:
 
-## 🔐 Segurança
-
-- Rate limiting por IP
-- Validação de assinatura
-- Criptografia de dados sensíveis
-- Sanitização de logs
-
-## 📝 Endpoints
-
-### POST /
-Endpoint principal para processamento de fluxos.
-
-**Headers necessários:**
-- `x-hub-signature-256`: Assinatura HMAC SHA256
-- `Content-Type`: application/json
-
-### GET /health
-Endpoint de health check.
-
-## ⚙️ Configuração
-
-### Variáveis de Ambiente
-- `PORT`: Porta do servidor
-- `APP_SECRET`: Chave para validação de assinatura
-- `PRIVATE_KEY`: Chave privada para descriptografia
-- `CRM_API_KEY`: Chave da API do CRM
-- etc.
-
-## 🧪 Testes
 ```bash
-npm test
+git clone https://github.com/seu-usuario/super-flow.git
 ```
 
-## 📊 Monitoramento
+2. Entre no diretório:
 
-O sistema inclui logs estruturados com:
-- Request ID
-- Métricas de duração
-- Rastreamento de erros
-- Health check
+```bash
+cd super-flow
+```
 
-## ⚠️ Limites
+3. Instale as dependências:
 
-- Rate limit: 100 requisições por minuto por IP
-- Tamanho máximo de payload: 10MB
-- Cache de CEP: 24 horas
-- Cache de benefícios: 30 minutos
+```bash
+npm install
+```
 
-## 🤝 Contribuição
+4. Inicie o projeto:
 
-1. Fork o projeto
-2. Crie sua branch (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
+```bash
+npm start
+```
 
-## 📱 Contato
+## 📦 Estrutura de Pastas
 
-Para suporte ou dúvidas, entre em contato com a equipe de desenvolvimento.
-
-## 📄 Licença
-
-Este projeto está sob a licença HeyMax.io
+```bash
+src/
+├── controllers/
+├── models/
+├── routes/
+└── utils/
